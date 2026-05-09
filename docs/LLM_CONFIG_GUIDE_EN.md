@@ -180,6 +180,8 @@ LITELLM_MODEL=ollama/qwen3:8b
 
 ### MiniMax Model Naming in Channel Mode
 
+- For MiniMax Token Plan, use the Anthropic-compatible channel shape: `LLM_MINIMAX_PROTOCOL=anthropic`, `LLM_MINIMAX_BASE_URL=https://api.minimaxi.com/anthropic`, and `LITELLM_MODEL=anthropic/MiniMax-M2.7`.
+- Token Plan Keys are not interchangeable with pay-as-you-go API keys; highspeed plans can switch the model to `MiniMax-M2.7-highspeed`.
 - If you access MiniMax through an OpenAI-compatible channel, enter the model as `minimax/<model-name>` in the channel model list, for example `minimax/MiniMax-M1`.
 - The Web settings page now keeps that value unchanged in Primary, Agent Primary, Fallback, and Vision selectors instead of rewriting it to `openai/minimax/<model-name>`.
 

@@ -123,9 +123,9 @@ describe('LLMChannelEditor', () => {
   });
 
   it.each([
-    ['minimax', /MiniMax 官方/i, 'https://api.minimax.io/v1', 'MiniMax-M2.7,MiniMax-M2.7-highspeed'],
-    ['volcengine', /火山方舟/i, 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-251015,doubao-seed-1-6-thinking-251015'],
-  ])('uses %s OpenAI-compatible defaults when adding the official preset', async (preset, buttonName, baseUrl, models) => {
+    ['minimax', /MiniMax 官方/i, 'anthropic', 'https://api.minimaxi.com/anthropic', 'MiniMax-M2.7,MiniMax-M2.7-highspeed'],
+    ['volcengine', /火山方舟/i, 'openai', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-251015,doubao-seed-1-6-thinking-251015'],
+  ])('uses %s official defaults when adding the provider preset', async (preset, buttonName, protocol, baseUrl, models) => {
     render(
       <LLMChannelEditor
         items={[]}
@@ -140,7 +140,7 @@ describe('LLMChannelEditor', () => {
 
     await screen.findByRole('button', { name: buttonName });
     expect(screen.getAllByRole('combobox').some((select) => (
-      select instanceof HTMLSelectElement && select.value === 'openai'
+      select instanceof HTMLSelectElement && select.value === protocol
     ))).toBe(true);
     expect(screen.getByLabelText('Base URL')).toHaveValue(baseUrl);
     expect(screen.getByLabelText('模型（逗号分隔）')).toHaveValue(models);
@@ -274,14 +274,14 @@ describe('LLMChannelEditor', () => {
       'minimax2',
     ]);
     expect(screen.getAllByLabelText('Base URL').map((input) => (input as HTMLInputElement).value)).toEqual([
-      'https://api.minimax.io/v1',
-      'https://api.minimax.io/v1',
+      'https://api.minimaxi.com/anthropic',
+      'https://api.minimaxi.com/anthropic',
     ]);
     expect(screen.getAllByLabelText('模型（逗号分隔）').map((input) => (input as HTMLInputElement).value)).toEqual([
       'MiniMax-M2.7,MiniMax-M2.7-highspeed',
       'MiniMax-M2.7,MiniMax-M2.7-highspeed',
     ]);
-    expect(screen.getAllByRole('link', { name: 'MiniMax OpenAI API' })).toHaveLength(1);
+    expect(screen.getAllByRole('link', { name: 'MiniMax Token Plan Quickstart' })).toHaveLength(1);
   });
 
   it('saves the MiniMax preset into LLM channel env keys', async () => {
@@ -317,8 +317,8 @@ describe('LLMChannelEditor', () => {
     expect(updatePayload.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'LLM_CHANNELS', value: 'minimax' }),
-        expect.objectContaining({ key: 'LLM_MINIMAX_PROTOCOL', value: 'openai' }),
-        expect.objectContaining({ key: 'LLM_MINIMAX_BASE_URL', value: 'https://api.minimax.io/v1' }),
+        expect.objectContaining({ key: 'LLM_MINIMAX_PROTOCOL', value: 'anthropic' }),
+        expect.objectContaining({ key: 'LLM_MINIMAX_BASE_URL', value: 'https://api.minimaxi.com/anthropic' }),
         expect.objectContaining({ key: 'LLM_MINIMAX_MODELS', value: 'MiniMax-M2.7,MiniMax-M2.7-highspeed' }),
       ]),
     );

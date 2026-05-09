@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [测试] 补充设置项帮助元数据、API schema、前端弹窗交互测试，并修复 Bot 名称路由与调度时间 provider 测试的离线 CI 稳定性问题。
 - [修复] 港股日线跳过不支持港股的内置历史数据源，避免港股代码错配到非港股市场数据。
 - [修复] 修正分析 API 对北交所 `BJ` 前缀与 `.BJ` 后缀股票代码的校验，保持前端自动补全与 Tushare `ts_code` 调用格式一致。
+- [改进] 将 MiniMax 预设与示例配置切换为 Token Plan 的 Anthropic 兼容入口，并补充订阅套餐 Key 与 highspeed 模型说明。
+- [chore] 升级 Web 前端直接依赖到当前最新版本，清零 npm audit 漏洞并拆分生产构建 chunk。
 
 ## [3.15.0] - 2026-05-05
 

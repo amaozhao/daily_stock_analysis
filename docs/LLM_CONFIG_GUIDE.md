@@ -180,6 +180,8 @@ LITELLM_MODEL=ollama/qwen3:8b
 
 ### MiniMax 渠道模型填写说明
 
+- 如果你使用 MiniMax Token Plan，请按 Anthropic 兼容渠道配置：`LLM_MINIMAX_PROTOCOL=anthropic`、`LLM_MINIMAX_BASE_URL=https://api.minimaxi.com/anthropic`、`LITELLM_MODEL=anthropic/MiniMax-M2.7`。
+- Token Plan Key 与按量 API Key 不互通；极速套餐再把模型切到 `MiniMax-M2.7-highspeed`。
 - 如果你通过 OpenAI Compatible 渠道接 MiniMax，请在渠道模型里直接填写 `minimax/<模型名>`，例如 `minimax/MiniMax-M1`。
 - Web 设置页里的主模型、Agent 主模型、Fallback、Vision 下拉会保留这个值原样展示，不会再错误改写成 `openai/minimax/<模型名>`。
 

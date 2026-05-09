@@ -116,13 +116,16 @@ export const LLM_PROVIDER_TEMPLATES: LLMProviderTemplate[] = [
   {
     channelId: 'minimax',
     label: 'MiniMax 官方',
-    protocol: 'openai',
-    baseUrl: 'https://api.minimax.io/v1',
+    protocol: 'anthropic',
+    baseUrl: 'https://api.minimaxi.com/anthropic',
     placeholderModels: 'MiniMax-M2.7,MiniMax-M2.7-highspeed',
-    capabilities: ['openai-compatible'],
+    capabilities: ['official-api'],
+    configHint:
+      'Token Plan Key 与按量 API Key 不互通；标准套餐使用 MiniMax-M2.7，极速套餐再选择 MiniMax-M2.7-highspeed。',
     officialSources: [
-      { label: 'MiniMax OpenAI API', url: 'https://platform.minimax.io/docs/api-reference/text-chat' },
-      { label: 'MiniMax Models', url: 'https://platform.minimax.io/docs/api-reference/models/openai/list-models' },
+      { label: 'MiniMax Token Plan Quickstart', url: 'https://platform.minimaxi.com/docs/token-plan/quickstart' },
+      { label: 'MiniMax Anthropic API', url: 'https://platform.minimaxi.com/docs/api-reference/text-anthropic-api' },
+      { label: 'MiniMax Anthropic Models', url: 'https://platform.minimaxi.com/docs/api-reference/models/anthropic/list-models' },
     ],
   },
   {
