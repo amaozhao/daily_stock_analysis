@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 修正分析 API 对北交所 `BJ` 前缀与 `.BJ` 后缀股票代码的校验，保持前端自动补全与 Tushare `ts_code` 调用格式一致。
 - [改进] 将 MiniMax 预设与示例配置切换为 Token Plan 的 Anthropic 兼容入口，并补充订阅套餐 Key 与 highspeed 模型说明。
 - [chore] 升级 Web 前端直接依赖到当前最新版本，清零 npm audit 漏洞并拆分生产构建 chunk。
+- [修复] 大盘复盘“近三日催化线索”改为明确展示摘要片段、来源日期和 URL，避免把搜索摘要截断内容误呈现为完整事件。
 
 ## [3.15.0] - 2026-05-05
 
