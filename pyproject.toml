@@ -23,6 +23,26 @@ profile = "black"
 line_length = 120
 skip = [".git", "__pycache__", ".env", "venv", ".venv"]
 
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".git",
+    "__pycache__",
+    ".env",
+    "venv",
+    ".venv",
+    ".venv*",
+    "build",
+    "dist",
+    "local",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+# Keep the historical gate narrow: only fatal syntax/pyflakes issues.
+select = ["E9", "F63", "F7", "F82"]
+
 [tool.bandit]
 exclude_dirs = ["tests", "test_*.py"]
 skips = ["B101"]  # assert 语句在测试中是允许的

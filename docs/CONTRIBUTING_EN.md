@@ -80,7 +80,7 @@ After opening a PR, CI will automatically run the following PR checks:
 
 | Check | Description | Required |
 |-------|-------------|:--------:|
-| `backend-gate` | `scripts/ci_gate.sh` — py_compile + flake8 critical errors + `./scripts/test.sh code` + `./scripts/test.sh yfinance` + offline pytest | ✅ |
+| `backend-gate` | `scripts/ci_gate.sh` — py_compile + Ruff critical errors + `./scripts/test.sh code` + `./scripts/test.sh yfinance` + offline pytest | ✅ |
 | `docker-build` | Docker image build and key module import smoke test | ✅ |
 | `web-gate` | `npm run lint` + `npm run build` (triggered when `apps/dsa-web/` changes) | ✅ (when triggered) |
 
@@ -91,7 +91,7 @@ Separately, the repository also has a non-blocking `network-smoke` workflow in `
 ```bash
 # Backend gate (recommended)
 pip install -r requirements.txt
-pip install flake8 pytest
+pip install ruff pytest
 ./scripts/ci_gate.sh
 
 # Frontend gate (only if you changed apps/dsa-web/)

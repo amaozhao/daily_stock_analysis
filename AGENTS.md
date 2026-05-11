@@ -82,7 +82,7 @@ uvicorn server:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 pip install -r requirements.txt
-pip install flake8 pytest
+pip install ruff pytest
 ./scripts/ci_gate.sh
 python -m pytest -m "not network"
 python -m py_compile <changed_python_files>
