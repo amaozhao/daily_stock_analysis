@@ -1,6 +1,6 @@
 # 通知能力基线
 
-本文档记录通知能力 P0-P2 基线：渠道、配置 key、GitHub Actions 映射、Web 设置元数据、CLI 诊断口径、Web 一键测试和自定义 Webhook Body 模板语义。P0 只做基线与只读诊断；P1 增加 Web 单渠道真实测试；P2 只产品化现有 Body 模板，不包含渠道路由、降噪、per-URL 模板或新增一等渠道。
+本文档记录通知能力 P0-P3 基线：渠道、配置 key、GitHub Actions 映射、Web 设置元数据、CLI 诊断口径、Web 一键测试、自定义 Webhook Body 模板语义和通知路由策略。P0 只做基线与只读诊断；P1 增加 Web 单渠道真实测试；P2 产品化现有 Body 模板；P3 增加 report / alert / system_error 路由，不包含降噪、per-URL 模板或新增一等渠道。
 
 ## 渠道基线
 
@@ -25,7 +25,8 @@
 
 - Minimal key：足以启用一个通知渠道的最小配置。
 - Advanced key：只影响认证、安全、格式、线程、群组、证书校验或展示行为，不能单独启用渠道。
-- P0-P2 不新增路由、降噪或发送策略语义；相关配置如未来引入，应先更新本文档、`.env.example`、Web 元数据与回归测试。
+- P3 的 `NOTIFICATION_*_CHANNELS` 属于 Advanced key：只收窄已启用渠道，不会单独启用渠道。
+- 降噪、长尾渠道和更细粒度路由不在 P3 范围内；相关配置如未来引入，应先更新本文档、`.env.example`、Web 元数据与回归测试。
 
 ## GitHub Actions 映射
 
@@ -37,7 +38,13 @@
 - `FEISHU_WEBHOOK_KEYWORD`
 - `PUSHPLUS_TOPIC`
 
-P0 不映射 `MARKDOWN_TO_IMAGE_CHANNELS` 与 `MERGE_EMAIL_NOTIFICATION`。它们是发送形态或聚合行为开关，不是渠道凭证；在 Actions 中自动开始读取同名 Secret/Variable 会引入行为变化，留到后续专门阶段处理。
+P3 补齐以下通知路由映射：
+
+- `NOTIFICATION_REPORT_CHANNELS`
+- `NOTIFICATION_ALERT_CHANNELS`
+- `NOTIFICATION_SYSTEM_ERROR_CHANNELS`
+
+默认 workflow 仍不映射 `MARKDOWN_TO_IMAGE_CHANNELS` 与 `MERGE_EMAIL_NOTIFICATION`。它们是发送形态或聚合行为开关，不是渠道凭证；在 Actions 中自动开始读取同名 Secret/Variable 会引入额外行为变化。
 
 ## CLI 诊断
 
@@ -99,6 +106,25 @@ CUSTOM_WEBHOOK_BODY_TEMPLATE={"user_id":123456,"message":$content_json}
 # 群聊：CUSTOM_WEBHOOK_URLS=http://127.0.0.1:3000/send_group_msg
 CUSTOM_WEBHOOK_BODY_TEMPLATE={"group_id":123456789,"message":$content_json}
 ```
+
+## 通知路由策略
+
+P3 新增三类通知路由配置：
+
+| 路由类型 | 配置 key | 当前生产者 |
+| --- | --- | --- |
+| `report` | `NOTIFICATION_REPORT_CHANNELS` | 单股推送、聚合日报、大盘复盘、合并推送、飞书文档成功链接 |
+| `alert` | `NOTIFICATION_ALERT_CHANNELS` | EventMonitor 触发通知 |
+| `system_error` | `NOTIFICATION_SYSTEM_ERROR_CHANNELS` | 预留能力；当前不新增自动系统错误生产者 |
+
+配置值为逗号分隔渠道枚举：`wechat,feishu,telegram,email,pushover,pushplus,serverchan3,custom,discord,slack,astrbot`。
+
+- 留空或未配置：保持旧行为，发送到所有已配置静态渠道。
+- 非空：只发送到路由列表与已配置渠道的交集；交集为空时不会 fallback 到全渠道。
+- `send_to_context()` 不受路由限制，机器人会话上下文仍会收到触发任务的回复。
+- 路由过滤发生在 Markdown 转图片前，`MARKDOWN_TO_IMAGE_CHANNELS` 只对路由后的渠道子集生效。
+- `MERGE_EMAIL_NOTIFICATION` 不需要额外配置；只要 `email` 仍在 report 路由后的渠道中，现有合并邮件行为保持不变。
+- `--check-notify` 会把未知渠道值报为 error，把合法但未启用的路由目标报为 warning。
 
 ## 场景占位
 
