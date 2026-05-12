@@ -69,8 +69,8 @@ jobs:
           done
       - name: ✅ Python syntax check
         run: ./scripts/ci_gate.sh syntax
-      - name: ✅ Flake8 critical checks
-        run: ./scripts/ci_gate.sh flake8
+      - name: ✅ Ruff critical checks
+        run: ./scripts/ci_gate.sh ruff
       - name: ✅ Local deterministic checks
         run: ./scripts/ci_gate.sh deterministic
       - name: ✅ Offline test suite

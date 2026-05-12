@@ -10,9 +10,9 @@ syntax_check() {
   python -m py_compile data_provider/*.py
 }
 
-flake8_checks() {
-  echo "==> backend-gate: flake8 critical checks"
-  flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+ruff_checks() {
+  echo "==> backend-gate: Ruff critical checks"
+  ruff check .
 }
 
 deterministic_checks() {
@@ -28,7 +28,7 @@ offline_test_suite() {
 
 run_all() {
   syntax_check
-  flake8_checks
+  ruff_checks
   deterministic_checks
   offline_test_suite
   echo "==> backend-gate: all checks passed"
@@ -43,8 +43,8 @@ case "$phase" in
   syntax)
     syntax_check
     ;;
-  flake8)
-    flake8_checks
+  ruff)
+    ruff_checks
     ;;
   deterministic)
     deterministic_checks
@@ -53,7 +53,7 @@ case "$phase" in
     offline_test_suite
     ;;
   *)
-    echo "Usage: $0 [all|syntax|flake8|deterministic|offline-tests]" >&2
+    echo "Usage: $0 [all|syntax|ruff|deterministic|offline-tests]" >&2
     exit 2
     ;;
 esac

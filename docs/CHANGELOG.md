@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Docker 挂载的 `logs` 目录不可写时启动日志自动降级到控制台输出，并补充非 root 容器目录权限说明。
 - [修复] 修正分析报告 API 构建策略点位时数值字段未归一为字符串的问题，避免策略价格触发响应 DTO 类型校验失败。
 - [修复] Docker 启动入口自动修复 `data` / `logs` / `reports` 挂载目录权限并降权运行，文档化的 Compose `exec` 手动命令显式使用 `dsa` 用户，避免普通部署需要手动 `chown` / `chmod`。
+- [chore] 将后端致命静态检查从 flake8 迁移到 Ruff，保持 `E9/F63/F7/F82` 规则范围并同步本地脚本、CI 和贡献文档。
 
 ## [3.16.0] - 2026-05-10
 

@@ -109,7 +109,7 @@ jobs:
       - name: 📦 安装依赖
         run: |
           pip install --upgrade pip
-          pip install flake8
+          pip install ruff
       
       - name: 📋 检查变更文件
         id: check_files
@@ -161,11 +161,11 @@ jobs:
             echo "✅ 所有文件语法正确" >> $GITHUB_STEP_SUMMARY
           fi
       
-      - name: 🔎 Flake8 检查（严重错误）
+      - name: 🔎 Ruff 检查（严重错误）
         if: steps.check_files.outputs.has_py_changes == 'true'
         run: |
           echo "## 🔎 代码质量检查" >> $GITHUB_STEP_SUMMARY
-          RESULT=$(flake8 $CHANGED_FILES --select=E9,F63,F7,F82 --format='%(path)s:%(row)d: %(code)s %(text)s' 2>/dev/null || true)
+          RESULT=$(ruff check $CHANGED_FILES --select=E9,F63,F7,F82 --output-format=concise --quiet 2>/dev/null || true)
           if [ -n "$RESULT" ]; then
             echo "⚠️ 发现以下问题：" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY

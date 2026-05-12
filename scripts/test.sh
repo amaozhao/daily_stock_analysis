@@ -257,16 +257,16 @@ test_syntax() {
     success "语法检查通过"
 }
 
-# 测试13: Flake8 静态检查
-test_flake8() {
-    header "测试场景: Flake8 静态检查"
-    info "运行 Flake8 检查严重错误..."
+# 测试13: Ruff 静态检查
+test_ruff() {
+    header "测试场景: Ruff 静态检查"
+    info "运行 Ruff 检查严重错误..."
 
-    if command -v flake8 &> /dev/null; then
-        flake8 main.py src/config.py src/notification.py --select=F821,E999 --max-line-length=120
-        success "Flake8 检查通过"
+    if command -v ruff &> /dev/null; then
+        ruff check main.py src/config.py src/notification.py --select=E9,F821
+        success "Ruff 检查通过"
     else
-        warn "Flake8 未安装，跳过检查"
+        warn "Ruff 未安装，跳过检查"
     fi
 }
 
@@ -277,7 +277,7 @@ test_all() {
     test_syntax
     test_code_recognition
     test_yfinance_convert
-    test_flake8
+    test_ruff
 
     echo ""
     info "以下测试需要网络和API配置，可能会失败:"
@@ -350,9 +350,9 @@ main() {
             shift
             test_syntax "$@"
             ;;
-        flake8|lint)
+        ruff|lint)
             shift
-            test_flake8 "$@"
+            test_ruff "$@"
             ;;
         all)
             shift
@@ -375,7 +375,7 @@ main() {
             echo "  code        - 代码识别测试"
             echo "  yfinance    - YFinance转换测试"
             echo "  syntax      - 语法检查"
-            echo "  flake8      - 静态检查"
+            echo "  ruff        - 静态检查"
             echo "  all         - 运行所有测试"
             echo ""
             echo "示例:"
