@@ -13,6 +13,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const PortfolioPage = lazy(() => import('./pages/PortfolioPage'));
+const AlertsPage = lazy(() => import('./pages/AlertsPage'));
 
 const withPageFallback = (element: React.ReactElement) => (
   <Suspense fallback={<Loading className="min-h-[50vh]" />}>
@@ -72,6 +73,7 @@ const AppContent: React.FC = () => {
         <Route path="/chat" element={withPageFallback(<ChatPage />)} />
         <Route path="/portfolio" element={withPageFallback(<PortfolioPage />)} />
         <Route path="/backtest" element={withPageFallback(<BacktestPage />)} />
+        <Route path="/alerts" element={withPageFallback(<AlertsPage />)} />
         <Route path="/settings" element={withPageFallback(<SettingsPage />)} />
         <Route path="*" element={withPageFallback(<NotFoundPage />)} />
       </Route>

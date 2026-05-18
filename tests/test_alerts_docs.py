@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Contract checks for the alert-center P0 documentation."""
+"""Contract checks for the alert-center documentation."""
 
 from pathlib import Path
 
@@ -15,7 +15,7 @@ def _read_doc() -> str:
 def test_alerts_doc_exists_and_links_p0_scope() -> None:
     doc = _read_doc()
 
-    assert "Issue #1202 P0" in doc
+    assert "Issue #1202" in doc
     assert "AGENT_EVENT_ALERT_RULES_JSON" in doc
     assert "EventMonitor" in doc
     assert "P1 Alert API MVP" in doc
@@ -130,6 +130,22 @@ def test_alerts_doc_keeps_p1_non_goals_explicit() -> None:
         assert token in doc
 
 
+def test_alerts_doc_defines_p2_worker_scope() -> None:
+    doc = _read_doc()
+
+    for token in (
+        "## P2 告警评估 Worker",
+        "src/services/alert_worker.py",
+        "agent_event_monitor",
+        "持久化 active rules",
+        "legacy JSON",
+        "`triggered`、`skipped`、`degraded`、`failed`",
+        "不写 `alert_notifications`",
+        "不执行 `cooldown_policy`",
+    ):
+        assert token in doc
+
+
 def test_alerts_doc_describes_p1_rollback_for_created_tables() -> None:
     doc = _read_doc()
 
@@ -139,5 +155,25 @@ def test_alerts_doc_describes_p1_rollback_for_created_tables() -> None:
         "Base.metadata.create_all()",
         "SQLite 表与数据不会自动删除",
         "手动删除相关表",
+    ):
+        assert token in doc
+
+
+def test_alerts_doc_defines_p4_notification_and_cooldown_scope() -> None:
+    doc = _read_doc()
+
+    for token in (
+        "## P4 通知结果与持久化冷却",
+        "`alert_cooldowns`",
+        "`alert_notifications`",
+        "`__cooldown__`",
+        "`__cooldown_read_failed__`",
+        "`__noise_suppressed__`",
+        "notification_noise.py",
+        "DB 持久化规则正常路径使用 `alert_cooldowns`",
+        "读取持久化冷却状态失败",
+        "legacy `AGENT_EVENT_ALERT_RULES_JSON` 规则继续使用 worker 进程内 fingerprint",
+        "不会写入或延长 `alert_cooldowns`",
+        "最小回滚方式是 revert P4 PR",
     ):
         assert token in doc
