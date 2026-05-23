@@ -33,6 +33,15 @@ function toSnakeRulePayload(payload: AlertRuleCreateRequest): Record<string, unk
       price: payload.parameters.price,
       change_pct: payload.parameters.changePct,
       multiplier: payload.parameters.multiplier,
+      window: payload.parameters.window,
+      period: payload.parameters.period,
+      threshold: payload.parameters.threshold,
+      fast_period: payload.parameters.fastPeriod,
+      slow_period: payload.parameters.slowPeriod,
+      signal_period: payload.parameters.signalPeriod,
+      k_period: payload.parameters.kPeriod,
+      d_period: payload.parameters.dPeriod,
+      mode: payload.parameters.mode,
     });
   }
   return request;

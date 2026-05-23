@@ -1,7 +1,20 @@
-export type AlertType = 'price_cross' | 'price_change_percent' | 'volume_spike';
+export type AlertType =
+  | 'price_cross'
+  | 'price_change_percent'
+  | 'volume_spike'
+  | 'ma_price_cross'
+  | 'rsi_threshold'
+  | 'macd_cross'
+  | 'kdj_cross'
+  | 'cci_threshold'
+  | 'portfolio_stop_loss'
+  | 'portfolio_concentration'
+  | 'portfolio_drawdown'
+  | 'portfolio_price_stale';
 export type AlertSeverity = 'info' | 'warning' | 'critical';
-export type AlertTargetScope = 'single_symbol';
-export type AlertDirection = 'above' | 'below' | 'up' | 'down';
+export type AlertTargetScope = 'single_symbol' | 'watchlist' | 'portfolio_holdings' | 'portfolio_account';
+export type AlertDirection = 'above' | 'below' | 'up' | 'down' | 'bullish_cross' | 'bearish_cross';
+export type PortfolioStopLossMode = 'near' | 'breach';
 export type AlertDryRunStatus = 'triggered' | 'not_triggered' | 'evaluation_error';
 export type AlertTriggerStatus = 'triggered' | 'skipped' | 'degraded' | 'failed';
 
@@ -10,6 +23,15 @@ export interface AlertRuleParameters {
   price?: number;
   changePct?: number;
   multiplier?: number;
+  window?: number;
+  period?: number;
+  threshold?: number;
+  fastPeriod?: number;
+  slowPeriod?: number;
+  signalPeriod?: number;
+  kPeriod?: number;
+  dPeriod?: number;
+  mode?: PortfolioStopLossMode;
 }
 
 export interface AlertRuleItem {
@@ -54,9 +76,26 @@ export interface AlertDeleteResponse {
 
 export interface AlertRuleTestResponse {
   ruleId: number;
+  targetScope?: AlertTargetScope | string | null;
   status: AlertDryRunStatus;
   triggered: boolean;
   observedValue?: unknown;
+  message: string;
+  evaluatedCount?: number;
+  triggeredCount?: number;
+  degradedCount?: number;
+  skippedCount?: number;
+  targetResults?: AlertRuleTargetResult[];
+}
+
+export interface AlertRuleTargetResult {
+  target: string;
+  displayTarget?: string | null;
+  status: AlertDryRunStatus;
+  recordStatus?: AlertTriggerStatus | null;
+  triggered: boolean;
+  observedValue?: unknown;
+  threshold?: unknown;
   message: string;
 }
 

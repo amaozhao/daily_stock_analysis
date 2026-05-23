@@ -196,7 +196,7 @@ P3 不做：
 
 P4 让真实告警触发具备可排障的通知结果，并让通过 Alert API 创建的持久化规则具备可重启保持的业务冷却状态。
 
-- 每次真实触发仍写入本轮 `alert_triggers`；即使后续被冷却或通知降噪抑制，也保留“规则确实触发”的审计记录。
+- DB 持久化规则的 `triggered` 历史按 `rule_id + target + data_source + data_timestamp` 做同一数据点去重：同一触发事件只保留最早一条 `alert_triggers`，重复轮询命中会复用已有触发记录；`data_timestamp` 缺失时不做去重，避免误合并无法证明同源的数据点。即使后续被冷却或通知降噪抑制，仍通过 `alert_notifications` 记录对应的通知尝试或 synthetic 抑制状态。
 - `alert_notifications` 记录真实 per-channel notification attempt，包括 `channel`、`success`、`error_code`、`retryable`、`latency_ms` 和脱敏后的 `diagnostics`。
 - 非渠道发送状态使用 synthetic channel 记录：
   - `__cooldown__`：告警业务冷却抑制，`error_code="cooldown_active"`。
@@ -218,6 +218,118 @@ P4 不做：
 - 不实现 target-level 跨规则合并冷却；目标级合并留到持仓/市场联动阶段。
 - 不重写通知渠道网关；`NotificationService.send()` 继续保持布尔返回兼容，结构化结果通过新增兼容接口提供。
 - 不自动迁移、删除或改写 legacy `AGENT_EVENT_ALERT_RULES_JSON`。
+
+## P5 技术指标规则
+
+P5 在现有 Alert API、Web 告警中心和 `src/services/alert_worker.py` 评估链路中新增日线技术指标规则。规则仍写入 `alert_rules`，触发、降级、失败、通知结果和持久化冷却继续复用 P2-P4 的 `alert_triggers`、`alert_notifications` 与 `alert_cooldowns` 语义。
+
+P5 支持的 `alert_type` 与 `parameters`：
+
+| alert_type | parameters | 触发语义 |
+| --- | --- | --- |
+| `ma_price_cross` | `direction=above|below`，`window` 默认 `20`，整数 `[2,250]` | close 相对 MA(window) 边缘上穿/下穿 |
+| `rsi_threshold` | `direction=above|below`，`period` 默认 `12`，整数 `[2,250]`，`threshold` 必填且 `0..100` | RSI 相对阈值边缘上穿/下穿 |
+| `macd_cross` | `direction=bullish_cross|bearish_cross`，`fast_period=12`，`slow_period=26`，`signal_period=9`，均为 `[2,250]` 且 `fast_period < slow_period` | DIF/DEA 边缘金叉/死叉 |
+| `kdj_cross` | `direction=bullish_cross|bearish_cross`，`period=9`，`k_period=3`，`d_period=3`，均为 `[2,250]` | K/D 边缘金叉/死叉 |
+| `cci_threshold` | `direction=above|below`，`period` 默认 `14`，整数 `[2,250]`，`threshold` 必填且为有限数值 | CCI 相对阈值边缘上穿/下穿 |
+
+评估规则：
+
+- 首版统一使用日线 close，不做分钟线。
+- 边缘触发只比较最近两根已收盘日线；非边缘但当前 level 已满足阈值时仍返回 `not_triggered`，避免规则创建首日把历史状态误报为新触发。
+- 边缘触发包含前一根刚好等于阈值或零轴的情况：`above` / `bullish_cross` 使用 `prev <= threshold < current`，`below` / `bearish_cross` 使用 `prev >= threshold > current`。
+- partial bar 只使用服务器本地时区启发式：当前本地时间早于 16:00 时，最后一行日期等于本地今天或日期不可判定都会保守丢弃；不区分 A 股、港股、美股市场时区或交易日历。多市场盘中精确判定留到后续阶段。
+- `src/services/alert_indicators.py` 自行归一化 OHLCV 并计算 MA、RSI、MACD、KDJ、CCI，不依赖 fetcher 预计算的 MA5/MA10/MA20。
+- RSI 使用 Wilder's EMA / SMMA：`avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()`，`avg_loss` 同理，不使用 rolling SMA。
+- MACD 使用 `EMA(fast_period) - EMA(slow_period)` 得到 DIF，DEA 为 DIF 的 `EMA(signal_period)`；金叉/死叉比较 DIF-DEA 相对 0 的边缘穿越。
+- KDJ 使用最近 `period` 日最高/最低价计算 RSV，并用 `alpha=1/k_period`、`alpha=1/d_period` 的 EMA 得到 K/D；金叉/死叉比较 K-D 相对 0 的边缘穿越。
+- CCI 使用典型价格 `(high + low + close) / 3`，按 `period` 日均值和平均绝对偏差计算 `(TP - MA(TP)) / (0.015 * mean_deviation)`。
+- `compute_required_bars(alert_type, params)` 定义最少有效 closed bars：MA=`window+1`，RSI=`period+1`，MACD=`slow_period+signal_period+1`，KDJ=`period+k_period+d_period+1`，CCI=`period+1`。
+- 拉取天数使用 `requested_days = min(max(required_bars * 3, required_bars + 30), 365)`；API 会拒绝 `required_bars > 365` 的组合周期，避免创建永久样本不足的规则；同一 worker 轮次按 `(stock_code, requested_days)` 缓存日线数据，轮次结束释放。
+- 缺数据、缺列或有效样本少于 `required_bars` 写入 `degraded`；数据源异常沿用 `volume_spike` 语义返回 `evaluation_error` / `failed`，不发送通知。
+
+兼容边界：
+
+- `AGENT_EVENT_ALERT_RULES_JSON` 仍是 legacy JSON 路径，只支持 `price_cross`、`price_change_percent`、`volume_spike` 三类规则；P5 技术指标只通过 Alert API / Web 创建。
+- 不扩展 `src/agent/events.py` 的 legacy `AlertType` 或 `_RUNTIME_SUPPORTED_ALERT_TYPES`。
+- P5 创建/更新参数错误沿用现有 Alert API 错误契约：HTTP 400 + `validation_error`；unsupported 类型返回 HTTP 400 + `unsupported_alert_type`。
+- Web 告警中心只扩展现有创建表单、列表展示、类型筛选和 dry-run 测试，不新增规则编辑器；dry-run 测试不写触发历史，且 API 响应仍沿用 `triggered` / `not_triggered` / `evaluation_error` 三态，worker 写入的 `degraded` 状态通过触发历史查看。
+- 回滚 P5 PR 后，数据库中已创建的技术指标规则记录会保留；旧代码在 worker 加载阶段遇到 unsupported `alert_type` 会 skip，不影响 legacy 三类规则继续执行。如需清理，需要维护者确认后手动删除相关 `alert_rules` 记录。
+
+P5 不做：
+
+- 不支持 MACD 柱体放大/收缩。
+- 不支持 KDJ 超买/超卖区规则。
+- 不支持 MA 与 MA 双均线交叉。
+- 不支持分钟线、市场日历精确判定或多市场时区精确 partial bar。
+- 不支持 legacy `AGENT_EVENT_ALERT_RULES_JSON` 技术指标规则。
+- 不引入 DSL、规则引擎、新数据库表或分析报告 pipeline 内的技术指标规则引擎。
+
+## P6 持仓与自选股联动
+
+P6 在现有 Alert API、Web 告警中心和 `src/services/alert_worker.py` 评估链路中新增 `watchlist`、`portfolio_holdings`、`portfolio_account` 三类目标范围。规则仍写入 `alert_rules`，触发、降级、失败、通知结果和持久化冷却继续复用 P2-P4 的 `alert_triggers`、`alert_notifications` 与 `alert_cooldowns` 语义，不新增表或迁移。
+
+### P6 scope/type 矩阵
+
+| `target_scope` | `target` | 允许的 `alert_type` | 评估方式 |
+| --- | --- | --- | --- |
+| `single_symbol` | 股票代码 | P1 三类价格/成交量规则 + P5 技术指标 | 单规则单标的 |
+| `watchlist` | `default` | P1 三类价格/成交量规则 + P5 技术指标 | 每轮刷新并读取当前 `STOCK_LIST`，按股票代码展开 |
+| `portfolio_holdings` | `all` 或 active account ID | P1 三类价格/成交量规则 + P5 技术指标 | 从持仓 snapshot 的非零持仓展开 symbol，按 symbol 去重 |
+| `portfolio_account` | `all` 或 active account ID | `portfolio_stop_loss`、`portfolio_concentration`、`portfolio_drawdown`、`portfolio_price_stale` | 账户级风险评估，不展开为单标的 |
+
+创建/更新规则时，`watchlist` / `portfolio_holdings` 不把父级 `target` 当股票代码校验；`portfolio_account` 禁止 price/volume/技术指标类型；`portfolio_holdings` 和 `portfolio_account` 在 `target=<id>` 时会校验账户存在且 active，不存在返回 HTTP 400 + `validation_error`。legacy `AGENT_EVENT_ALERT_RULES_JSON` 不支持 watchlist、portfolio 或技术指标扩展，继续仅支持 `single_symbol` 的 `price_cross`、`price_change_percent`、`volume_spike`。
+
+### Target Identity Contract
+
+P6 将可展示目标与可持久化目标分离：
+
+| 场景 | `effective_target` | `display_target` |
+| --- | --- | --- |
+| `single_symbol` | `<symbol>` | `<symbol>` |
+| `watchlist` 展开子目标 | `<symbol>` | `自选股 - <symbol>` |
+| `portfolio_holdings` 展开子目标 | `<symbol>` | `持仓 - <symbol>` |
+| `portfolio_account target=all` | `account:all` | `全部账户` |
+| `portfolio_account target=<id>` | `account:<id>` | `账户 <id>` |
+
+- `alert_triggers.target`、`alert_cooldowns.target`、P4 `rule_id + target + data_source + data_timestamp` 去重全部使用 `effective_target`。
+- `RuntimeAlertRule.key` 对展开后的子目标使用 `{parent_key}|{effective_target}`，避免 DB cooldown 读取失败时的进程内 fallback 把同一父规则下的不同子目标互相 suppress。
+- `display_target` 不写入 `alert_triggers.target`，仅用于通知标题、dry-run `target_results` 和 Web 展示。
+- P6 不做跨规则同标的通知合并；同一股票若同时命中 watchlist 子规则和独立 `single_symbol` 规则，会按每条规则独立记录和通知。
+
+### Dry-run 聚合
+
+- `POST /api/v1/alerts/rules/{rule_id}/test` 对批量规则返回聚合字段：`evaluated_count`、`triggered_count`、`degraded_count`、`skipped_count`、`target_results`。
+- 展开目标 soft cap 为 100；dry-run 中超过 soft cap 的目标记为 `degraded` 聚合结果并写日志。worker 运行时只评估前 100 个展开目标并写 warning，不为 overflow 本身写 `alert_triggers` 历史。
+- dry-run 使用受限并发评估，单目标超时 10 秒，总评估超时 30 秒；未完成目标记为 `skipped`。
+- 任一目标 triggered 时顶层 `status=triggered`；无触发但存在成功评估、skipped 或 degraded 时顶层 `status=not_triggered`；无法展开或全部失败时才返回 `evaluation_error`。
+- 空 watchlist / 空 holdings：dry-run 返回 `not_triggered` 并在 `target_results` 中给出 `record_status=skipped`；worker 会写 `skipped` 历史。
+- `degraded_count` 统计全部展开评估结果中 `record_status=degraded` 的条目；`target_results` 仅展示前 20 条，排序为 triggered 优先，其次 degraded/failed，再按 target 排序。
+
+### 持仓风险规则
+
+| `alert_type` | 参数 | 观察值 | 触发语义 |
+| --- | --- | --- | --- |
+| `portfolio_stop_loss` | `mode=near|breach`，默认 `near` | 受影响标的最大 `loss_pct` | `near` 使用 `stop_loss.near_alert`，`breach` 只统计 `is_triggered=true` 的 items；每账户每轮最多一条 trigger |
+| `portfolio_concentration` | - | `concentration.top_weight_pct` | `top_weight_pct >= portfolio_risk_concentration_alert_pct` |
+| `portfolio_drawdown` | - | `drawdown.max_drawdown_pct` | 复用 `PortfolioRiskService` 的 `drawdown.alert`；`current_drawdown_pct` 写 diagnostics |
+| `portfolio_price_stale` | - | stale/missing 价格持仓数量 | 任一 position `price_stale=true` 或 `price_available=false` |
+
+portfolio diagnostics 必含 `account_id`（或 `all`）、`currency`、`as_of`、`price_stale`、`fx_stale`、`data_available`、`top_affected_symbols`。`portfolio_stop_loss`、`portfolio_concentration`、`portfolio_drawdown` 复用 `PortfolioRiskService.get_risk_report()`；`portfolio_price_stale` 复用 `PortfolioService.get_portfolio_snapshot()` 的 position price metadata。
+
+### Web 与 cooldown 摘要
+
+- Web 创建表单新增目标范围选择；`watchlist` / `portfolio_holdings` 只显示 price/volume/P5 技术指标类型，`portfolio_account` 只显示四类 portfolio 风险类型。
+- `portfolio_holdings` / `portfolio_account` 加载账户列表失败时，表单保留 `all` 选项并展示错误。
+- 规则列表上的 `cooldown_active` 对 `single_symbol` 和 `portfolio_account` 准确；`watchlist` / `portfolio_holdings` 是父规则摘要，不代表每个子目标的冷却状态，子目标冷却以触发历史和 `effective_target` 为准。
+- dry-run UI 展示聚合计数和最多 20 条 `target_results` 明细。
+
+P6 不做：
+
+- 不做 P7 Market Light。
+- 不做财报日前、分红除权日前提醒；这类规则需要稳定日期契约后另起 follow-up。
+- 不做 sector 级集中度告警；P6 集中度使用 symbol 维度 `top_weight_pct`。
+- 不做跨规则同标的通知合并、分钟线、多市场时区精确判定或 legacy JSON 扩展。
 
 ## Phase 边界
 
@@ -247,3 +359,5 @@ P4 不做：
 - P1 新增 Alert API 代码和 `alert_rules` / `alert_triggers` / `alert_notifications` SQLite 表。最小回滚方式是 revert P1 PR；revert 会移除 API、service、repository、schema 和 ORM 定义，但已经由 `Base.metadata.create_all()` 创建的 SQLite 表与数据不会自动删除。如需清理，需要维护者在确认不再需要历史数据后手动删除相关表。
 - P3 是 Web 和文档改动。最小回滚方式是 revert P3 PR；不会删除已有规则、触发历史或 legacy JSON 配置。
 - P4 新增 `alert_cooldowns` SQLite 表并开始写入 `alert_notifications`。最小回滚方式是 revert P4 PR；已经创建的 `alert_cooldowns`、`alert_triggers`、`alert_notifications` 数据不会自动删除。如需清理，需要维护者确认后手动删除对应表或记录。
+- P5 新增 Alert API/Web 支持的技术指标规则。最小回滚方式是 revert P5 PR；已创建的 P5 `alert_rules` 记录不会自动删除，旧代码会在 worker 加载阶段 skip unsupported `alert_type`，不影响 legacy 三类规则执行。如需清理，需要维护者确认后手动删除相关规则记录。
+- P6 新增 Alert API/Web 支持的 watchlist、portfolio holdings 与 portfolio account 规则。最小回滚方式是 revert P6 PR；没有新表或迁移，已创建的 P6 `alert_rules` 会保留。回滚前建议 disable/delete 非 `single_symbol` 的 P6 规则；否则旧 worker 可能把 `watchlist` / `portfolio_holdings` 的父级 `target` 当作股票代码评估并产生 failed/skipped 噪声，portfolio 专用 `alert_type` 会在 worker 加载阶段被 skip。

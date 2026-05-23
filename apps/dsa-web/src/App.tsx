@@ -1,7 +1,12 @@
 import type React from 'react';
-import { Suspense, lazy, useEffect } from 'react';
+import { lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { ApiErrorAlert, Loading, Shell } from './components/common';
+import { ApiErrorAlert, Shell } from './components/common';
+import {
+  PageLoadingFallback,
+  RouteOutletBoundary,
+  StandaloneRouteBoundary,
+} from './components/layout/RouteBoundary';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useAgentChatStore } from './stores/agentChatStore';
 import './App.css';
@@ -15,12 +20,6 @@ const ChatPage = lazy(() => import('./pages/ChatPage'));
 const PortfolioPage = lazy(() => import('./pages/PortfolioPage'));
 const AlertsPage = lazy(() => import('./pages/AlertsPage'));
 
-const withPageFallback = (element: React.ReactElement) => (
-  <Suspense fallback={<Loading className="min-h-[50vh]" />}>
-    {element}
-  </Suspense>
-);
-
 const AppContent: React.FC = () => {
   const location = useLocation();
   const { authEnabled, loggedIn, isLoading, loadError, refreshStatus } = useAuth();
@@ -30,11 +29,7 @@ const AppContent: React.FC = () => {
   }, [location.pathname]);
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-base">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan/20 border-t-cyan" />
-      </div>
-    );
+    return <PageLoadingFallback />;
   }
 
   if (loadError) {
@@ -56,7 +51,11 @@ const AppContent: React.FC = () => {
 
   if (authEnabled && !loggedIn) {
     if (location.pathname === '/login') {
-      return withPageFallback(<LoginPage />);
+      return (
+        <StandaloneRouteBoundary>
+          <LoginPage />
+        </StandaloneRouteBoundary>
+      );
     }
     const redirect = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
@@ -68,16 +67,21 @@ const AppContent: React.FC = () => {
 
   return (
     <Routes>
-      <Route element={<Shell />}>
-        <Route path="/" element={withPageFallback(<HomePage />)} />
-        <Route path="/chat" element={withPageFallback(<ChatPage />)} />
-        <Route path="/portfolio" element={withPageFallback(<PortfolioPage />)} />
-        <Route path="/backtest" element={withPageFallback(<BacktestPage />)} />
-        <Route path="/alerts" element={withPageFallback(<AlertsPage />)} />
-        <Route path="/settings" element={withPageFallback(<SettingsPage />)} />
-        <Route path="*" element={withPageFallback(<NotFoundPage />)} />
+      <Route
+        element={(
+          <Shell>
+            <RouteOutletBoundary />
+          </Shell>
+        )}
+      >
+        <Route path="/" element={<HomePage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/portfolio" element={<PortfolioPage />} />
+        <Route path="/backtest" element={<BacktestPage />} />
+        <Route path="/alerts" element={<AlertsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
-      <Route path="/login" element={withPageFallback(<LoginPage />)} />
     </Routes>
   );
 };
