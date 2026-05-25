@@ -249,6 +249,36 @@ def test_alerts_doc_defines_p6_portfolio_and_watchlist_scope() -> None:
         assert token in doc
 
 
+def test_alerts_doc_defines_p7_market_light_scope() -> None:
+    doc = _read_doc()
+
+    for token in (
+        "## P7 大盘红绿灯结构化告警",
+        "MarketLightSnapshot",
+        "`target_scope=market`",
+        "`market_light_status`",
+        "`market_light_score_drop`",
+        "`statuses=[\"red\",\"yellow\"]`",
+        "`min_drop > 0`",
+        "`cn` / `hk` / `us`",
+        "双向约束",
+        "`context_snapshot.market_light_snapshots`",
+        "`data_quality=unavailable`",
+        "`partial_comparison=true`",
+        "`missing_dimensions`",
+        "canonical scorer",
+        "thin wrapper",
+        "`load_previous_snapshot(region, before_trade_date)`",
+        "最大 `snapshot.trade_date`",
+        "旧交易日 backfill",
+        "`TRADING_DAY_CHECK_ENABLED`",
+        "`data_source=market_light`",
+        "legacy `AGENT_EVENT_ALERT_RULES_JSON` 不支持 market 规则",
+        "revert P7 PR",
+    ):
+        assert token in doc
+
+
 def test_changelog_mentions_alert_p6_release_note() -> None:
     changelog = (PROJECT_ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
 

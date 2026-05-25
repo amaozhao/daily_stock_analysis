@@ -590,6 +590,37 @@ crontab -e
 >
 > When the built-in scheduler is started via `python main.py --schedule`, `python main.py --serve --schedule`, or an equivalent local mode, saving a new `SCHEDULE_TIME` from the WebUI will rebind the daily job on the next scheduler poll without restarting the process. The previous trigger time is removed instead of being kept alongside the new one.
 
+### Market Phase Baseline (Issue #1386 P0)
+
+P0 only adds an internal market-phase inference baseline. It does not change the existing daily post-market report, trading-day skip behavior, effective trading date resolution, API, Web, Bot, Agent, or GitHub Actions defaults. The phase inference is preparation for the P1+ context contract. If `exchange-calendars` is unavailable or the calendar lookup fails, the phase returns `unknown`; the existing trading-day filter and effective-date helpers keep their current fail-open behavior.
+
+The phase labels describe regular-session state:
+
+| Phase | Meaning |
+| --- | --- |
+| `premarket` | Before the regular session opens; does not mean extended-hours quotes were fetched |
+| `intraday` | Inside the regular session and outside lunch break or the near-close window |
+| `lunch_break` | Lunch break window supplied by the market calendar; markets without lunch breaks skip this phase |
+| `closing_auction` | Near-close heuristic window: 3 minutes for CN, 10 minutes for HK, and 5 minutes for US; this is not a full exchange auction model |
+| `postmarket` | After the regular session closes; does not mean post-market quotes were fetched |
+| `non_trading` | The current market-local date is not a trading session |
+| `unknown` | Unknown market, calendar unavailable, or calendar error, so the phase cannot be inferred reliably |
+
+Current entrypoint baseline:
+
+- Regular stock analysis, Agent analysis, Web manual analysis, Bot `/analyze` / `/ask`, schedule mode, and GitHub Actions still use the existing analysis path and post-market recap wording. P0 does not switch prompts or output schema automatically.
+- Market review still follows `MARKET_REVIEW_REGION` and trading-day filtering; it does not consume market phase labels.
+- Mixed-market watchlists should infer phase per symbol market. Displaying inconsistent phases in aggregate reports is left to P1+.
+
+Known problem baseline:
+
+- Intraday runs can still describe unfinished intraday data like a complete daily recap.
+- Output may still focus on "today's recap / watch tomorrow" instead of current intraday observation.
+- Quote timestamp, source, cache, and stale state are not yet unified into a phase context.
+- Lunch break, near-close, and forced non-trading-day runs are not yet explicit in prompts or report structure.
+
+P0 does not connect this baseline to pipeline / Agent / API / Web / Bot, does not change report schemas, does not change alert technical-indicator partial-bar handling, and does not add configuration keys.
+
 ---
 
 ## Notification Channel Configuration

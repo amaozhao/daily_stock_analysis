@@ -702,6 +702,37 @@ docker run -e SCHEDULE_ENABLED=true -e SCHEDULE_RUN_IMMEDIATELY=false ...
 - 交易日盘中或收盘前运行时，会以上一个已完成交易日作为复用目标；交易日收盘后运行时，当日数据已存在则可直接跳过，不存在则继续抓取
 - 覆盖方式：`TRADING_DAY_CHECK_ENABLED=false` 或 命令行 `--force-run`
 
+#### 市场阶段基线（Issue #1386 P0）
+
+P0 只新增内部市场阶段推断基线，不改变现有每日收盘报告、交易日跳过、断点续传、API、Web、Bot、Agent 或 GitHub Actions 默认行为。阶段推断用于后续 P1+ 的上下文契约准备；未安装 `exchange-calendars` 或日历异常时，阶段返回 `unknown`，但现有交易日判断和最新可复用交易日逻辑仍保持原来的 fail-open 行为。
+
+阶段枚举基于 regular session 语义：
+
+| 阶段 | 含义 |
+| --- | --- |
+| `premarket` | 常规交易时段开盘前；不代表已经获取盘前扩展时段行情 |
+| `intraday` | 常规交易时段内，且不处于午休或临近收盘窗口 |
+| `lunch_break` | 市场日历提供的午间休市窗口；无午休市场不会进入此阶段 |
+| `closing_auction` | 临近收盘启发式窗口：A 股 3 分钟、港股 10 分钟、美股 5 分钟；不代表完整交易所竞价制度 |
+| `postmarket` | 常规交易时段收盘后；不代表已经获取盘后扩展时段行情 |
+| `non_trading` | 当前市场本地日期不是交易日 |
+| `unknown` | 未知市场、日历不可用或日历异常，无法可靠推断阶段 |
+
+当前入口现状：
+
+- 普通个股分析、Agent 分析、Web 手动分析、Bot `/analyze` / `/ask`、schedule、GitHub Actions 仍沿用既有分析路径和盘后复盘口径，不会因为 P0 阶段基线自动切换 Prompt 或输出结构。
+- 大盘复盘仍按 `MARKET_REVIEW_REGION` 与交易日过滤运行，不消费市场阶段标签。
+- 跨市场混合自选股应按每个 symbol 自身市场分别推断阶段；聚合报告展示“多市场阶段不一致”留给 P1+。
+
+已知问题基线：
+
+- 盘中触发时，报告仍可能把尚未收盘的日内行情写成完整交易日复盘。
+- 输出仍可能偏向“今日走势复盘 / 明日关注”，而不是“当前盘中下一步观察”。
+- 实时行情时间戳、数据源、缓存和 stale 状态还没有统一进入阶段上下文。
+- 午间休市、临近收盘、非交易日强制运行等场景还没有被 Prompt 和报告结构显式表达。
+
+P0 不做：不接入 pipeline / Agent / API / Web / Bot，不修改报告 schema，不改告警 technical indicator 的 partial bar 判断，也不新增配置项。
+
 #### 使用 Crontab
 
 如果不想使用常驻进程，也可以使用系统的 Cron：
