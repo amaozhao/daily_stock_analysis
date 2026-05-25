@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import re
+import threading
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
@@ -74,6 +75,27 @@ SUPPORTED_SEVERITIES = frozenset({"info", "warning", "critical"})
 NULLABLE_RULE_UPDATE_FIELDS = frozenset({"cooldown_policy", "notification_policy"})
 
 logger = logging.getLogger(__name__)
+
+
+async def _run_sync_in_thread(func, *args, **kwargs):
+    """Run sync alert evaluators without relying on asyncio.to_thread."""
+    result_box = []
+    error_box = []
+
+    def worker() -> None:
+        try:
+            result_box.append(func(*args, **kwargs))
+        except BaseException as exc:
+            error_box.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    while thread.is_alive():
+        await asyncio.sleep(0.01)
+    thread.join()
+    if error_box:
+        raise error_box[0]
+    return result_box[0] if result_box else None
 
 
 class AlertServiceError(ValueError):
@@ -212,9 +234,9 @@ class AlertService:
         if isinstance(rule, TechnicalIndicatorAlert):
             return await self._evaluate_technical_indicator(rule, daily_cache=daily_cache)
         if isinstance(rule, PortfolioRiskAlert):
-            return await asyncio.to_thread(evaluate_portfolio_risk_alert, rule)
+            return await _run_sync_in_thread(evaluate_portfolio_risk_alert, rule)
         if isinstance(rule, MarketLightAlert):
-            return await asyncio.to_thread(evaluate_market_light_alert, rule, cache=daily_cache)
+            return await _run_sync_in_thread(evaluate_market_light_alert, rule, cache=daily_cache)
         if isinstance(rule, StaticAlertEvaluation):
             return evaluate_static_alert(rule)
         return self._evaluation_error(rule, f"unsupported runtime alert type: {rule.alert_type}")
@@ -435,7 +457,7 @@ class AlertService:
             return DataFetcherManager().get_daily_data(rule.stock_code, days=20)
 
         try:
-            result = await asyncio.to_thread(_fetch_daily_data)
+            result = await _run_sync_in_thread(_fetch_daily_data)
         except Exception as exc:
             return self._evaluation_error(rule, exc, data_source="daily_data")
         if result is None:
@@ -533,7 +555,7 @@ class AlertService:
             if daily_cache is not None and cache_key in daily_cache:
                 result = daily_cache[cache_key]
             else:
-                result = await asyncio.to_thread(_fetch_daily_data)
+                result = await _run_sync_in_thread(_fetch_daily_data)
                 if daily_cache is not None:
                     daily_cache[cache_key] = result
         except Exception as exc:

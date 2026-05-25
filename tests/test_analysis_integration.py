@@ -13,16 +13,16 @@ Covers:
 
 import pytest
 from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
 from api.app import create_app
 from src.services.task_queue import AnalysisTaskQueue, TaskStatus
 from src.config import Config
+from tests.support.asgi_client import ASGITestClient
 import src.auth as auth
 
 @pytest.fixture
 def client():
     app = create_app()
-    return TestClient(app)
+    return ASGITestClient(app)
 
 
 @pytest.fixture(autouse=True)

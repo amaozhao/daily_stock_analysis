@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-from fastapi.testclient import TestClient
 
 try:
     import litellm  # noqa: F401
@@ -27,6 +26,7 @@ from src.services.portfolio_import_service import PortfolioImportService
 from src.services.portfolio_risk_service import PortfolioRiskService
 from src.services.portfolio_service import PortfolioBusyError, PortfolioService
 from src.storage import DatabaseManager
+from tests.support.asgi_client import ASGITestClient
 
 
 def _reset_auth_globals() -> None:
@@ -75,7 +75,7 @@ class PortfolioPr2TestCase(unittest.TestCase):
         self.risk_service = PortfolioRiskService(portfolio_service=self.service)
         self._board_fetch_patcher = patch.object(PortfolioRiskService, "_fetch_belong_boards", return_value=[])
         self._board_fetch_patcher.start()
-        self.client = TestClient(create_app(static_dir=data_dir / "empty-static"))
+        self.client = ASGITestClient(create_app(static_dir=data_dir / "empty-static"))
 
     def tearDown(self) -> None:
         DatabaseManager.reset_instance()

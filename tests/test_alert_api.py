@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
-from fastapi.testclient import TestClient
 
 try:
     import litellm  # noqa: F401
@@ -27,6 +26,7 @@ from src.config import Config
 from src.repositories.alert_repo import AlertRepository
 from src.services.portfolio_service import PortfolioService
 from src.storage import AlertCooldownRecord, AlertNotificationRecord, AlertTriggerRecord, Base, DatabaseManager
+from tests.support.asgi_client import ASGITestClient
 
 
 def _reset_auth_globals() -> None:
@@ -65,7 +65,7 @@ class AlertApiTestCase(unittest.TestCase):
         Config.reset_instance()
         DatabaseManager.reset_instance()
         app = create_app(static_dir=self.data_dir / "empty-static")
-        self.client = TestClient(app)
+        self.client = ASGITestClient(app)
         self.db = DatabaseManager.get_instance()
 
     def tearDown(self) -> None:

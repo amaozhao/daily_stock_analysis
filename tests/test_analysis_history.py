@@ -24,11 +24,11 @@ except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
 try:
-    from fastapi.testclient import TestClient
     from api.app import create_app
     from api.v1.endpoints.history import get_history_detail
+    from tests.support.asgi_client import ASGITestClient
 except ModuleNotFoundError:
-    TestClient = None
+    ASGITestClient = None
     create_app = None
     get_history_detail = None
 
@@ -271,7 +271,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
     @patch("src.auth.is_auth_enabled", return_value=False)
     def test_history_detail_ignores_non_dict_realtime_quote_raw(self, mock_auth) -> None:
         """GET /api/v1/history/{id} should tolerate truthy non-dict realtime_quote_raw."""
-        if TestClient is None or create_app is None:
+        if ASGITestClient is None or create_app is None:
             self.skipTest("fastapi is not installed in this test environment")
 
         context_snapshot = {
@@ -299,7 +299,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
 
         static_dir = Path(self._temp_dir.name) / "empty-static"
         static_dir.mkdir(exist_ok=True)
-        client = TestClient(create_app(static_dir=static_dir))
+        client = ASGITestClient(create_app(static_dir=static_dir))
 
         response = client.get(f"/api/v1/history/{record_id}")
 
@@ -892,7 +892,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
     @patch("src.auth.is_auth_enabled", return_value=False)
     def test_delete_history_api_deletes_selected_records(self, mock_auth) -> None:
         """DELETE /api/v1/history should remove only the requested records."""
-        if TestClient is None or create_app is None:
+        if ASGITestClient is None or create_app is None:
             self.skipTest("fastapi is not installed in this test environment")
 
         record_id_1 = self._save_history("query_delete_api_001")
@@ -900,7 +900,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
 
         static_dir = Path(self._temp_dir.name) / "empty-static"
         static_dir.mkdir(exist_ok=True)
-        client = TestClient(create_app(static_dir=static_dir))
+        client = ASGITestClient(create_app(static_dir=static_dir))
 
         response = client.request(
             "DELETE",

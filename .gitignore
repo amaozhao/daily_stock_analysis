@@ -37,6 +37,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+/stock_analysis.spec
 
 # 虚拟环境
 venv/

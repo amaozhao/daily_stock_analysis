@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
+from tests.support.asgi_client import ASGITestClient
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -157,7 +157,7 @@ def test_missing_asset_returns_safe_404_content_types(tmp_path: Path) -> None:
     (assets_dir / "index-abc.css").write_text("/* ok */", encoding="utf-8")
     _write_index(static_dir, _vite_index("index-abc.js", "index-abc.css"))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     js_response = client.get("/assets/index-missing.js")
     css_response = client.get("/assets/index-missing.css")
@@ -188,7 +188,7 @@ def test_existing_asset_is_served_from_explicit_assets_route(tmp_path: Path) -> 
     css_file.write_text("body{color:#fff}", encoding="utf-8")
     _write_index(static_dir, _vite_index("index-abc.js", "index-abc.css"))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     js_response = client.get("/assets/index-abc.js")
     css_response = client.get("/assets/index-abc.css")
@@ -213,7 +213,7 @@ def test_existing_asset_supports_head_and_conditional_requests(tmp_path: Path) -
     (assets_dir / "index-abc.css").write_text("body{color:#fff}", encoding="utf-8")
     _write_index(static_dir, _vite_index("index-abc.js", "index-abc.css"))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     get_response = client.get("/assets/index-abc.js")
     etag = get_response.headers["etag"]
@@ -245,7 +245,7 @@ def test_frontend_index_responses_are_not_cacheable(tmp_path: Path) -> None:
     (assets_dir / "index-abc.css").write_text("/* ok */", encoding="utf-8")
     _write_index(static_dir, _vite_index("index-abc.js", "index-abc.css"))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     root_response = client.get("/")
     direct_index_response = client.get("/index.html")
@@ -287,7 +287,7 @@ def test_asset_traversal_attempts_are_rejected(
     outside_secret = tmp_path / "secret.txt"
     outside_secret.write_text("top secret", encoding="utf-8")
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
     response = client.get(request_path)
 
     assert response.status_code == 404
