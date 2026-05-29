@@ -106,6 +106,8 @@ npm test
 npm run build
 ```
 
+`npm run build` 会先检查仓库根目录下的 `dist/backend/stock_analysis` 是否存在且非空；若未先完成后端 PyInstaller 打包，会直接失败，避免生成缺少内置后端的桌面安装包。
+
 在 Windows 发布复核环境，还可额外执行：
 
 ```powershell

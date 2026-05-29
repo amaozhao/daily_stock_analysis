@@ -12,7 +12,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-from fastapi.testclient import TestClient
 
 # Keep this test runnable when optional LLM runtime deps are not installed.
 try:
@@ -25,6 +24,7 @@ from api.app import create_app
 from src.config import Config
 from src.services.portfolio_service import PortfolioBusyError
 from src.storage import DatabaseManager
+from tests.support.asgi_client import ASGITestClient
 
 
 def _reset_auth_globals() -> None:
@@ -62,7 +62,7 @@ class PortfolioApiTestCase(unittest.TestCase):
         Config.reset_instance()
         DatabaseManager.reset_instance()
         app = create_app(static_dir=self.data_dir / "empty-static")
-        self.client = TestClient(app)
+        self.client = ASGITestClient(app)
         self.db = DatabaseManager.get_instance()
 
     def tearDown(self) -> None:

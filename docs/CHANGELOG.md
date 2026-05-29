@@ -87,6 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] 新增运行态市场阶段上下文构造与降级测试。
 - [文档] 新增 AnalysisContextPack P0 上下文盘点，明确字段质量状态、现有状态映射和首版 pack 边界。
 - [修复] 恢复 Agent/历史兼容快照中的关联板块与板块联动字段提取，修复新版首页报告缺少“板块联动”的回归问题。
+- [修复] 桌面端 `npm run build` 在缺少 `dist/backend/stock_analysis` 时改为预检失败，避免 electron-builder 仅告警后产出缺少内置后端的安装包。
+- [测试] 后端 API 集成测试改用仓库内 ASGI 测试客户端，绕开本地 Python 3.13/anyio 线程池卡死路径并恢复离线 CI 可验证性。
 
 ## [3.19.0] - 2026-05-29
 
