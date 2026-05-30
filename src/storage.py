@@ -398,6 +398,48 @@ class BacktestSummary(Base):
     )
 
 
+class RecommendationRunIndex(Base):
+    """Recommendation run summary index.
+
+    CSV/meta artifacts remain the audit source of truth; this table stores
+    searchable summary fields and artifact paths for Web pagination.
+    """
+
+    __tablename__ = 'recommendation_run_index'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(String(160), nullable=False, unique=True, index=True)
+    market = Column(String(16), nullable=False, index=True)
+    trade_date = Column(Date, nullable=False, index=True)
+    generated_at = Column(DateTime, index=True)
+
+    profile = Column(String(80))
+    profile_hash = Column(String(80), index=True)
+
+    universe_count = Column(Integer, default=0)
+    snapshot_count = Column(Integer, default=0)
+    scored_count = Column(Integer, default=0)
+    recommended_count = Column(Integer, default=0)
+    deep_analyzed_count = Column(Integer, default=0)
+    coverage_ratio = Column(Float)
+
+    meta_file = Column(Text, nullable=False)
+    snapshot_file = Column(Text)
+    candidates_file = Column(Text)
+    recommendations_file = Column(Text)
+    profile_snapshot_file = Column(Text)
+    backtest_files = Column(Text)
+    warnings = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.now, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        Index('ix_recommendation_market_trade_date', 'market', 'trade_date'),
+        Index('ix_recommendation_generated', 'generated_at'),
+    )
+
+
 class PortfolioAccount(Base):
     """Portfolio account metadata."""
 

@@ -106,11 +106,13 @@ class MainScheduleModeTestCase(unittest.TestCase):
             schedule_time,
             run_immediately,
             background_tasks=None,
+            daily_tasks=None,
             schedule_time_provider=None,
         ):
             scheduled_call["schedule_time"] = schedule_time
             scheduled_call["run_immediately"] = run_immediately
             scheduled_call["background_tasks"] = background_tasks or []
+            scheduled_call["daily_tasks"] = daily_tasks or []
             scheduled_call["resolved_schedule_time"] = (
                 schedule_time_provider() if schedule_time_provider is not None else None
             )
@@ -133,6 +135,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
                 "schedule_time": "18:00",
                 "run_immediately": True,
                 "background_tasks": [],
+                "daily_tasks": [],
                 "resolved_schedule_time": "18:00",
             },
         )
@@ -152,9 +155,11 @@ class MainScheduleModeTestCase(unittest.TestCase):
             schedule_time,
             run_immediately,
             background_tasks=None,
+            daily_tasks=None,
             schedule_time_provider=None,
         ):
             scheduled_call["schedule_time"] = schedule_time
+            scheduled_call["daily_tasks"] = daily_tasks or []
             scheduled_call["resolved_schedule_time"] = (
                 schedule_time_provider() if schedule_time_provider is not None else None
             )
@@ -172,7 +177,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(
             scheduled_call,
-            {"schedule_time": "18:00", "resolved_schedule_time": "09:30"},
+            {"schedule_time": "18:00", "daily_tasks": [], "resolved_schedule_time": "09:30"},
         )
         run_full_analysis.assert_called_once_with(runtime_config, args, None)
 
@@ -192,11 +197,13 @@ class MainScheduleModeTestCase(unittest.TestCase):
             schedule_time,
             run_immediately,
             background_tasks=None,
+            daily_tasks=None,
             schedule_time_provider=None,
         ):
             scheduled_call["schedule_time"] = schedule_time
             scheduled_call["run_immediately"] = run_immediately
             scheduled_call["background_tasks"] = background_tasks or []
+            scheduled_call["daily_tasks"] = daily_tasks or []
             scheduled_call["resolved_schedule_time"] = (
                 schedule_time_provider() if schedule_time_provider is not None else None
             )
@@ -218,6 +225,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
         self.assertEqual(scheduled_call["schedule_time"], "18:00")
         self.assertEqual(scheduled_call["run_immediately"], True)
         self.assertEqual(scheduled_call["resolved_schedule_time"], "18:00")
+        self.assertEqual(scheduled_call["daily_tasks"], [])
         self.assertEqual(len(scheduled_call["background_tasks"]), 1)
         background_task = scheduled_call["background_tasks"][0]
         self.assertEqual(background_task["name"], "agent_event_monitor")
@@ -246,9 +254,11 @@ class MainScheduleModeTestCase(unittest.TestCase):
             schedule_time,
             run_immediately,
             background_tasks=None,
+            daily_tasks=None,
             schedule_time_provider=None,
         ):
             scheduled_call["background_tasks"] = background_tasks or []
+            scheduled_call["daily_tasks"] = daily_tasks or []
 
         with patch("main.parse_arguments", return_value=args), \
              patch("main.get_config", return_value=config), \
@@ -264,6 +274,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
         worker_cls.assert_called_once()
         run_full_analysis.assert_not_called()
         self.assertEqual(len(scheduled_call["background_tasks"]), 1)
+        self.assertEqual(scheduled_call["daily_tasks"], [])
         self.assertEqual(scheduled_call["background_tasks"][0]["name"], "agent_event_monitor")
 
     def test_check_notify_returns_before_other_modes(self) -> None:

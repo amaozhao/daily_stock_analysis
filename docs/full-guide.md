@@ -413,6 +413,17 @@ daily_stock_analysis/
 | `TRADING_DAY_CHECK_ENABLED` | 交易日检查：默认 `true`，非交易日跳过执行；设为 `false` 或使用 `--force-run` 可强制执行（Issue #373） | `true` |
 | `SCHEDULE_ENABLED` | 启用定时任务 | `false` |
 | `SCHEDULE_TIME` | 定时执行时间 | `18:00` |
+| `RECOMMENDATION_ENABLED` | 启用全市场盘后选股推荐；从全量 A 股股票池筛选，不依赖 `STOCK_LIST` | `false` |
+| `RECOMMENDATION_SCHEDULE_TIME` | 推荐任务每日执行时间，A 股建议收盘后 `15:10`-`15:30`；自动调度会复用 `TRADING_DAY_CHECK_ENABLED`，非交易日或未收盘时跳过 | `15:30` |
+| `RECOMMENDATION_RUN_IMMEDIATELY` | 定时模式启动时是否立即执行一次推荐任务；若交易日检查开启且市场未收盘，会跳过本次立即执行 | `false` |
+| `RECOMMENDATION_NOTIFY_ENABLED` | 推荐任务完成后是否按报告通知路由推送 Markdown 摘要 | `true` |
+| `RECOMMENDATION_LLM_REVIEW_ENABLED` | 是否对 Top 推荐候选运行现有个股深度分析做 LLM 风险复核；会消耗模型额度 | `false` |
+| `RECOMMENDATION_DB_INDEX_ENABLED` | 是否将推荐运行摘要同步到数据库索引，便于历史分页、搜索和跨设备查看 | `true` |
+| `RECOMMENDATION_MARKET` | 推荐市场；首版仅支持 `cn` | `cn` |
+| `RECOMMENDATION_PROFILE` | 推荐规则 profile 名称；默认读取 `config/recommendation_profiles/{name}.toml` | `beginner_cn` |
+| `RECOMMENDATION_PROFILE_PATH` | 推荐规则 TOML profile 路径，默认 `config/recommendation_profiles/beginner_cn.toml` | - |
+| `RECOMMENDATION_OUTPUT_DIR` | 推荐结果输出目录，保存每日 market/candidates/recommendations CSV 与 meta JSON | `data/recommendations` |
+| `RECOMMENDATION_SNAPSHOT_RETENTION_DAYS` | 推荐快照、运行结果和 profile 快照保留天数 | `90` |
 | `LOG_DIR` | 日志目录 | `./logs` |
 
 ---

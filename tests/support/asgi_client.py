@@ -55,6 +55,8 @@ class ASGITestClient:
     def __init__(self, app: Any, *, base_url: str = "http://testserver") -> None:
         self._app = app
         self._base_url = base_url
+        self._started = False
+        self._lifespan_cm: Any = None
 
     def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         async def send() -> httpx.Response:
@@ -83,9 +85,16 @@ class ASGITestClient:
         return self.request("HEAD", url, **kwargs)
 
     def close(self) -> None:
+        if self._started:
+            self._run(self._lifespan_cm.__aexit__(None, None, None))
+            self._started = False
+            self._lifespan_cm = None
         return None
 
     def __enter__(self) -> "ASGITestClient":
+        self._lifespan_cm = self._app.router.lifespan_context(self._app)
+        self._run(self._lifespan_cm.__aenter__())
+        self._started = True
         return self
 
     def __exit__(self, *_exc: Any) -> None:

@@ -304,7 +304,7 @@ def test_stock_index_route_serves_newer_remote_cache(tmp_path: Path) -> None:
     os.utime(cache_path, (2_000, 2_000))
     os.utime(bundled_path, (1_000, 1_000))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     with patch.object(app_module, "get_remote_stock_index_cache_path", return_value=cache_path), \
          patch.object(app_module, "_bundled_stock_index_path", return_value=bundled_path), \
@@ -332,7 +332,7 @@ def test_stock_index_route_prefers_newer_static_index_over_older_remote_cache(tm
     os.utime(cache_path, (1_000, 1_000))
     os.utime(bundled_path, (1_000, 1_000))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     with patch.object(app_module, "get_remote_stock_index_cache_path", return_value=cache_path), \
          patch.object(app_module, "_bundled_stock_index_path", return_value=bundled_path), \
@@ -355,7 +355,7 @@ def test_stock_index_route_falls_back_to_static_index(tmp_path: Path) -> None:
     os.utime(static_dir / "stocks.index.json", (1_000, 1_000))
     os.utime(bundled_path, (2_000, 2_000))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     with patch.object(app_module, "get_remote_stock_index_cache_path", return_value=cache_path), \
          patch.object(app_module, "_bundled_stock_index_path", return_value=bundled_path), \
@@ -379,7 +379,7 @@ def test_stock_index_route_does_not_parse_bundled_candidates_on_hot_path(tmp_pat
     os.utime(static_dir / "stocks.index.json", (2_000, 2_000))
     os.utime(bundled_path, (1_000, 1_000))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     with patch.object(app_module, "get_remote_stock_index_cache_path", return_value=cache_path), \
          patch.object(app_module, "_bundled_stock_index_path", return_value=bundled_path), \
@@ -406,7 +406,7 @@ def test_stock_index_route_skips_invalid_remote_cache(tmp_path: Path) -> None:
     os.utime(static_dir / "stocks.index.json", (2_000, 2_000))
     os.utime(bundled_path, (1_000, 1_000))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     with patch.object(app_module, "get_remote_stock_index_cache_path", return_value=cache_path), \
          patch.object(app_module, "_bundled_stock_index_path", return_value=bundled_path), \
@@ -425,7 +425,7 @@ def test_stock_index_route_returns_404_when_all_candidates_missing(tmp_path: Pat
     cache_path = tmp_path / "cache" / "missing.json"
     bundled_path = tmp_path / "bundled" / "missing.json"
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     with patch.object(app_module, "get_remote_stock_index_cache_path", return_value=cache_path), \
          patch.object(app_module, "_bundled_stock_index_path", return_value=bundled_path), \
@@ -443,7 +443,7 @@ def test_app_startup_schedules_stock_index_background_refresh(tmp_path: Path) ->
     static_dir = tmp_path / "static"
 
     with patch.object(app_module, "_schedule_stock_index_background_refresh") as schedule:
-        with TestClient(create_app(static_dir=static_dir)):
+        with ASGITestClient(create_app(static_dir=static_dir)):
             pass
 
     schedule.assert_called_once_with(ANY, "startup")

@@ -345,6 +345,17 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 | `SCHEDULE_TIME` | Scheduled execution time | `18:00` |
 | `SCHEDULE_RUN_IMMEDIATELY` | Run once immediately when scheduler mode starts; when unset it keeps following the legacy `RUN_IMMEDIATELY` runtime override | `true` |
 | `RUN_IMMEDIATELY` | Run once immediately for non-scheduler startup; also acts as the legacy fallback when `SCHEDULE_RUN_IMMEDIATELY` is unset | `true` |
+| `RECOMMENDATION_ENABLED` | Enable full-market after-close stock recommendations; screens the full A-share universe instead of `STOCK_LIST` | `false` |
+| `RECOMMENDATION_SCHEDULE_TIME` | Daily recommendation run time; for A-shares use after close, such as `15:30`; scheduled runs reuse `TRADING_DAY_CHECK_ENABLED` and skip non-trading days or pre-close sessions | `15:30` |
+| `RECOMMENDATION_RUN_IMMEDIATELY` | Run one recommendation task immediately when scheduler mode starts; skipped when trading-day checks are enabled and the market has not closed | `false` |
+| `RECOMMENDATION_NOTIFY_ENABLED` | Send a Markdown summary through report notification routes after a recommendation run completes | `true` |
+| `RECOMMENDATION_LLM_REVIEW_ENABLED` | Run existing per-stock deep analysis for Top recommendations as an LLM risk review; consumes model quota | `false` |
+| `RECOMMENDATION_DB_INDEX_ENABLED` | Sync recommendation run summaries into a DB index for history pagination, search, and cross-device views | `true` |
+| `RECOMMENDATION_MARKET` | Recommendation market; first version supports `cn` only | `cn` |
+| `RECOMMENDATION_PROFILE` | Recommendation profile name; defaults to `config/recommendation_profiles/{name}.toml` | `beginner_cn` |
+| `RECOMMENDATION_PROFILE_PATH` | TOML recommendation profile path, defaulting to `config/recommendation_profiles/beginner_cn.toml` | - |
+| `RECOMMENDATION_OUTPUT_DIR` | Recommendation output directory for daily market/candidates/recommendations CSV files and meta JSON | `data/recommendations` |
+| `RECOMMENDATION_SNAPSHOT_RETENTION_DAYS` | Retention days for recommendation snapshots, run outputs, and profile snapshots | `90` |
 | `LOG_DIR` | Log directory | `./logs` |
 
 > Behavior notes:

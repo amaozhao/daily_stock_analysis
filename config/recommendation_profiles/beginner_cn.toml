@@ -1,0 +1,86 @@
+[universe]
+market = "cn"
+asset_types = ["stock"]
+exclude_st = true
+exclude_delisting_risk = true
+exclude_bse = true
+exclude_new_stock_days = 60
+
+[snapshot]
+preferred_sources = ["efinance", "akshare_em", "tencent", "akshare_sina"]
+min_snapshot_coverage_ratio = 0.85
+
+[hard_filters.price]
+min_price = 3.0
+max_price = 300.0
+
+[hard_filters.liquidity]
+min_amount = 100000000
+min_avg_amount_5d = 80000000
+min_avg_amount_20d = 60000000
+min_circ_mv = 3000000000
+
+[hard_filters.intraday]
+max_abs_change_pct = 7.0
+max_amplitude = 12.0
+max_volume_ratio = 5.0
+max_turnover_rate = 20.0
+exclude_limit_like = true
+exclude_one_word_board = true
+
+[features]
+ma_windows = [5, 10, 20, 60]
+return_windows = [3, 5, 20, 60]
+volume_windows = [5, 20]
+atr_window = 14
+history_prefilter_limit = 500
+
+[scoring.weights]
+liquidity = 15
+trend = 25
+entry_quality = 25
+volume_price = 15
+sector_strength = 10
+stability = 10
+
+[strategies.trend_pullback]
+enabled = true
+max_recommendations = 4
+min_score = 70
+min_bias_ma5 = -3.0
+max_bias_ma5 = 4.0
+min_change_pct = -3.0
+max_change_pct = 3.0
+min_volume_ratio = 0.6
+max_volume_ratio = 1.3
+max_drawdown_20d = 15.0
+
+[strategies.volume_breakout]
+enabled = true
+max_recommendations = 3
+min_score = 72
+min_change_pct = 2.0
+max_change_pct = 6.0
+min_volume_ratio = 1.5
+max_volume_ratio = 3.5
+
+[strategies.strong_consolidation]
+enabled = true
+max_recommendations = 2
+min_score = 70
+min_return_60d = 5.0
+max_return_60d = 60.0
+min_return_5d = -6.0
+max_return_5d = 6.0
+
+[strategies.low_reversal]
+enabled = true
+max_recommendations = 1
+min_score = 76
+
+[output]
+candidate_limit = 300
+deep_analysis_limit = 30
+recommend_limit = 10
+max_per_sector = 2
+min_final_score = 70

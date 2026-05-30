@@ -86,6 +86,7 @@ class Scheduler:
         self.shutdown_handler = GracefulShutdown()
         self._task_callback: Optional[Callable] = None
         self._daily_job: Optional[Any] = None
+        self._extra_daily_jobs: List[Any] = []
         self._background_tasks: List[Dict[str, Any]] = []
         self._running = False
 
@@ -104,6 +105,35 @@ class Scheduler:
         if run_immediately:
             logger.info("立即执行一次任务...")
             self._safe_run_task()
+
+    def add_daily_task(
+        self,
+        task: Callable,
+        schedule_time: str,
+        *,
+        run_immediately: bool = False,
+        name: Optional[str] = None,
+    ) -> None:
+        """Register an additional daily task at its own fixed HH:MM time."""
+        candidate = (schedule_time or "").strip()
+        if not self._is_valid_schedule_time(candidate):
+            raise ValueError(f"无效的定时执行时间: {schedule_time!r}")
+
+        task_name = name or getattr(task, "__name__", "daily_task")
+
+        def _runner() -> None:
+            try:
+                logger.info("额外每日任务开始执行 [%s] - %s", task_name, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                task()
+                logger.info("额外每日任务执行完成 [%s] - %s", task_name, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            except Exception as exc:
+                logger.exception("额外每日任务执行失败 [%s]: %s", task_name, exc)
+
+        job = self.schedule.every().day.at(candidate).do(_runner)
+        self._extra_daily_jobs.append(job)
+        logger.info("已设置额外每日任务 [%s]，执行时间: %s", task_name, candidate)
+        if run_immediately:
+            _runner()
 
     @staticmethod
     def _is_valid_schedule_time(schedule_time: str) -> bool:
@@ -310,6 +340,7 @@ def run_with_schedule(
     schedule_time: str = "18:00",
     run_immediately: bool = True,
     background_tasks: Optional[List[Dict[str, Any]]] = None,
+    daily_tasks: Optional[List[Dict[str, Any]]] = None,
     schedule_time_provider: Optional[Callable[[], str]] = None,
 ):
     """
@@ -322,6 +353,8 @@ def run_with_schedule(
         background_tasks: 可选的后台任务定义列表。每项为一个字典，
             需包含 `task` 与 `interval_seconds`，可选包含 `name`
             和 `run_immediately`。`interval_seconds` 单位为秒。
+        daily_tasks: 可选的额外每日任务列表。每项需包含 `task` 与
+            `schedule_time`，可选包含 `name` 和 `run_immediately`。
         schedule_time_provider: 可选的时间提供器；调度器每轮检查前会读取，
             当返回值变化时自动重建 daily job。
     """
@@ -333,6 +366,13 @@ def run_with_schedule(
         scheduler.add_background_task(
             task=entry["task"],
             interval_seconds=entry["interval_seconds"],
+            run_immediately=entry.get("run_immediately", False),
+            name=entry.get("name"),
+        )
+    for entry in daily_tasks or []:
+        scheduler.add_daily_task(
+            task=entry["task"],
+            schedule_time=entry["schedule_time"],
             run_immediately=entry.get("run_immediately", False),
             name=entry.get("name"),
         )

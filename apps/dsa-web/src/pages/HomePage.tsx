@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { getParsedApiError, type ParsedApiError } from '../api/error';
 import { analysisApi } from '../api/analysis';
 import { agentApi, type SkillInfo } from '../api/agent';
+import { recommendationsApi, type RecommendationLatestResponse } from '../api/recommendations';
 import { systemConfigApi } from '../api/systemConfig';
 import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert } from '../components/common';
 import { DashboardStateBlock } from '../components/dashboard';
@@ -23,6 +24,142 @@ type MarketReviewNotice = {
   message: string;
 } | null;
 
+type RecommendationPanelProps = {
+  data: RecommendationLatestResponse | null;
+  isLoading: boolean;
+  isRunning: boolean;
+  onRefresh: () => void;
+  onRun: () => void;
+};
+
+const splitReasonText = (value?: string): string[] => (
+  (value || '')
+    .split(';')
+    .map((item) => item.trim())
+    .filter(Boolean)
+);
+
+const reviewStatusLabel = (status?: string): string => {
+  switch (status) {
+    case 'passed':
+      return '复核通过';
+    case 'downgraded':
+      return '复核降级';
+    case 'rejected':
+      return '复核不通过';
+    case 'not_run':
+    case '':
+    case undefined:
+      return '';
+    default:
+      return '复核异常';
+  }
+};
+
+const formatScore = (value?: string | number): string => {
+  if (value === undefined || value === null || value === '') {
+    return '-';
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(1) : String(value);
+};
+
+const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
+  data,
+  isLoading,
+  isRunning,
+  onRefresh,
+  onRun,
+}) => {
+  const items = data?.recommendations || [];
+  const generatedAt = data?.meta.generatedAt
+    ? new Date(data.meta.generatedAt).toLocaleString('zh-CN', { hour12: false })
+    : '';
+
+  return (
+    <section
+      data-testid="recommendation-panel"
+      className="mb-4 rounded-xl border border-subtle bg-surface/70 p-3 shadow-sm"
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">今日盘后推荐</h2>
+          <p className="mt-1 text-xs text-muted-text">
+            {data ? `${data.meta.tradeDate} · ${generatedAt}` : '暂无推荐结果'}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" size="sm" isLoading={isLoading} loadingText="刷新中" onClick={onRefresh}>
+            刷新
+          </Button>
+          <Button type="button" variant="primary" size="sm" isLoading={isRunning} loadingText="运行中" onClick={onRun}>
+            运行推荐
+          </Button>
+        </div>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="grid gap-2 md:grid-cols-2">
+          {items.slice(0, 6).map((item, index) => {
+            const reasons = splitReasonText(item.positiveReasons).slice(0, 2);
+            const risks = [
+              ...splitReasonText(item.riskTags).filter((risk) => risk !== 'sector_data_unavailable'),
+              ...splitReasonText(item.negativeReasons).filter((risk) => risk.includes('LLM复核')),
+            ].slice(0, 2);
+            const reviewLabel = reviewStatusLabel(item.llmReviewStatus);
+            return (
+              <article
+                key={`${item.code}-${index}`}
+                className="rounded-lg border border-subtle bg-background/60 p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {item.name} <span className="text-xs text-muted-text">({item.code})</span>
+                    </p>
+                    <p className="mt-1 text-xs text-secondary-text">
+                      {item.recommendationLabel || '观察'} · {item.strategy || '综合筛选'} · 分数 {formatScore(item.selectionScore)}
+                    </p>
+                    {reviewLabel ? (
+                      <p className="mt-1 text-xs text-muted-text">
+                        {reviewLabel}{item.analysisQueryId ? ` · ${item.analysisQueryId}` : ''}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
+                    #{item.rank || index + 1}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-secondary-text">
+                  {item.beginnerAction || '等待确认，不追高。'}
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-text">
+                  <span>关注价：{item.watchPrice || '-'}</span>
+                  <span>止损：{item.stopLoss || '-'}</span>
+                </div>
+                {reasons.length > 0 ? (
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-secondary-text">
+                    {reasons.join('；')}
+                  </p>
+                ) : null}
+                {risks.length > 0 ? (
+                  <p className="mt-1 line-clamp-1 text-xs text-warning">
+                    风险：{risks.join('；')}
+                  </p>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-subtle px-3 py-4 text-sm text-muted-text">
+          {isLoading ? '正在读取盘后推荐...' : '暂无推荐结果，可在收盘后运行推荐任务。'}
+        </div>
+      )}
+    </section>
+  );
+};
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -33,6 +170,9 @@ const HomePage: React.FC = () => {
   const [marketReviewReport, setMarketReviewReport] = useState<string | null>(null);
   const [marketReviewReportCopied, setMarketReviewReportCopied] = useState(false);
   const [analysisSkills, setAnalysisSkills] = useState<SkillInfo[]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendationLatestResponse | null>(null);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  const [isRunningRecommendations, setIsRunningRecommendations] = useState(false);
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
   const [strategyMenuOpen, setStrategyMenuOpen] = useState(false);
   const marketReviewPollTimer = useRef<number | null>(null);
@@ -157,6 +297,30 @@ const HomePage: React.FC = () => {
       active = false;
     };
   }, []);
+
+  const loadRecommendations = useCallback(async () => {
+    setIsLoadingRecommendations(true);
+    try {
+      const latest = await recommendationsApi.getLatest();
+      setRecommendations(latest);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRecommendations();
+  }, [loadRecommendations]);
+
+  const handleRunRecommendations = useCallback(async () => {
+    setIsRunningRecommendations(true);
+    try {
+      await recommendationsApi.run(false);
+      await loadRecommendations();
+    } finally {
+      setIsRunningRecommendations(false);
+    }
+  }, [loadRecommendations]);
 
   useEffect(() => {
     if (!strategyMenuOpen) {
@@ -302,7 +466,7 @@ const HomePage: React.FC = () => {
     if (!setupStatus) {
       return '';
     }
-    const requiredNeedsAction = setupStatus.checks
+    const requiredNeedsAction = (setupStatus.checks ?? [])
       .filter((check) => check.required && check.status === 'needs_action')
       .map((check) => check.title);
     return requiredNeedsAction.slice(0, 3).join('、');
@@ -805,6 +969,15 @@ const HomePage: React.FC = () => {
                 error={error}
                 className="mb-3"
                 onDismiss={clearError}
+              />
+            ) : null}
+            {!selectedReport ? (
+              <RecommendationPanel
+                data={recommendations}
+                isLoading={isLoadingRecommendations}
+                isRunning={isRunningRecommendations}
+                onRefresh={() => void loadRecommendations()}
+                onRun={() => void handleRunRecommendations()}
               />
             ) : null}
             {isLoadingReport ? (

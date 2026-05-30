@@ -956,6 +956,7 @@ def main() -> int:
                 run_full_analysis(runtime_config, args, scheduled_stock_codes)
 
             background_tasks = []
+            daily_tasks = []
             if getattr(config, 'agent_event_monitor_enabled', False):
                 from src.services.alert_worker import AlertWorker
 
@@ -975,11 +976,62 @@ def main() -> int:
                     "name": "agent_event_monitor",
                 })
 
+            if getattr(config, 'recommendation_enabled', False):
+                def recommendation_task():
+                    from src.services.recommendation_service import RecommendationService
+
+                    runtime_config = _reload_runtime_config()
+                    recommendation_service = RecommendationService(config=runtime_config)
+                    skip_reason = recommendation_service.get_schedule_skip_reason(
+                        force_run=getattr(args, 'force_run', False),
+                    )
+                    if skip_reason:
+                        logger.info("[Recommendation] 跳过盘后选股推荐: %s。可使用 --force-run 强制执行。", skip_reason)
+                        return
+
+                    artifacts = recommendation_service.run_once(
+                        run_deep_analysis=getattr(runtime_config, 'recommendation_llm_review_enabled', False),
+                    )
+                    logger.info(
+                        "[Recommendation] 盘后选股推荐完成: run_id=%s recommended=%s",
+                        artifacts.run_id,
+                        artifacts.summary.get("recommended_count"),
+                    )
+                    if (
+                        getattr(runtime_config, 'recommendation_notify_enabled', True)
+                        and not getattr(args, 'no_notify', False)
+                    ):
+                        try:
+                            summary = recommendation_service.build_notification_summary(
+                                artifacts.run_id,
+                                market=getattr(runtime_config, 'recommendation_market', 'cn'),
+                            )
+                            if summary:
+                                from src.notification import NotificationService
+
+                                NotificationService(runtime_config).send(
+                                    summary,
+                                    email_send_to_all=True,
+                                    route_type="report",
+                                    severity="info",
+                                    dedup_key=f"recommendation:{artifacts.run_id}",
+                                )
+                        except Exception as exc:  # noqa: BLE001 - notification failure must not fail the run.
+                            logger.warning("[Recommendation] 推荐摘要通知发送失败: %s", exc)
+
+                daily_tasks.append({
+                    "task": recommendation_task,
+                    "schedule_time": getattr(config, 'recommendation_schedule_time', '15:30'),
+                    "run_immediately": getattr(config, 'recommendation_run_immediately', False),
+                    "name": "recommendation_screener",
+                })
+
             run_with_schedule(
                 task=scheduled_task,
                 schedule_time=config.schedule_time,
                 run_immediately=should_run_immediately,
                 background_tasks=background_tasks,
+                daily_tasks=daily_tasks,
                 schedule_time_provider=schedule_time_provider,
             )
             return 0

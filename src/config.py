@@ -860,6 +860,19 @@ class Config:
     backtest_min_age_days: int = 14
     backtest_engine_version: str = "v1"
     backtest_neutral_band_pct: float = 2.0
+
+    # === 全市场盘后选股推荐配置 ===
+    recommendation_enabled: bool = False
+    recommendation_schedule_time: str = "15:30"
+    recommendation_run_immediately: bool = False
+    recommendation_notify_enabled: bool = True
+    recommendation_llm_review_enabled: bool = False
+    recommendation_db_index_enabled: bool = True
+    recommendation_market: str = "cn"
+    recommendation_profile: str = "beginner_cn"
+    recommendation_profile_path: str = "config/recommendation_profiles/beginner_cn.toml"
+    recommendation_output_dir: str = "data/recommendations"
+    recommendation_snapshot_retention_days: int = 90
     
     # === 日志配置 ===
     log_dir: str = "./logs"  # 日志文件目录
@@ -1657,6 +1670,40 @@ class Config:
                 2.0,
                 field_name='BACKTEST_NEUTRAL_BAND_PCT',
                 minimum=0.0,
+            ),
+            recommendation_enabled=parse_env_bool(os.getenv('RECOMMENDATION_ENABLED'), default=False),
+            recommendation_schedule_time=(os.getenv('RECOMMENDATION_SCHEDULE_TIME') or '15:30').strip() or '15:30',
+            recommendation_run_immediately=parse_env_bool(
+                os.getenv('RECOMMENDATION_RUN_IMMEDIATELY'),
+                default=False,
+            ),
+            recommendation_notify_enabled=parse_env_bool(
+                os.getenv('RECOMMENDATION_NOTIFY_ENABLED'),
+                default=True,
+            ),
+            recommendation_llm_review_enabled=parse_env_bool(
+                os.getenv('RECOMMENDATION_LLM_REVIEW_ENABLED'),
+                default=False,
+            ),
+            recommendation_db_index_enabled=parse_env_bool(
+                os.getenv('RECOMMENDATION_DB_INDEX_ENABLED'),
+                default=True,
+            ),
+            recommendation_market=(os.getenv('RECOMMENDATION_MARKET') or 'cn').strip().lower() or 'cn',
+            recommendation_profile=(os.getenv('RECOMMENDATION_PROFILE') or 'beginner_cn').strip() or 'beginner_cn',
+            recommendation_profile_path=(
+                os.getenv('RECOMMENDATION_PROFILE_PATH')
+                or 'config/recommendation_profiles/beginner_cn.toml'
+            ).strip(),
+            recommendation_output_dir=(
+                os.getenv('RECOMMENDATION_OUTPUT_DIR')
+                or 'data/recommendations'
+            ).strip(),
+            recommendation_snapshot_retention_days=parse_env_int(
+                os.getenv('RECOMMENDATION_SNAPSHOT_RETENTION_DAYS'),
+                90,
+                field_name='RECOMMENDATION_SNAPSHOT_RETENTION_DAYS',
+                minimum=1,
             ),
             log_dir=os.getenv('LOG_DIR', './logs'),
             log_level=os.getenv('LOG_LEVEL', 'INFO'),

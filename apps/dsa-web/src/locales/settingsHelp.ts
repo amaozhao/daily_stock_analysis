@@ -487,6 +487,21 @@ const settingsHelpZhCN: SettingsHelpMap = {
     impact: ['影响定时任务和手动运行是否在休市日执行。'],
     notes: ['关闭后休市日可能生成缺少实时行情的报告。'],
   },
+  'settings.system.recommendation': {
+    title: '盘后选股推荐',
+    summary: '控制全市场 A 股盘后推荐的开关、调度、通知、profile 和文件保留。',
+    usage: '推荐规则阈值写在 TOML profile 中；这里配置是否启用、何时执行、是否通知以及使用哪个 profile。',
+    valueNotes: [
+      'RECOMMENDATION_SCHEDULE_TIME 建议设为 A 股收盘后，例如 15:30。',
+      '自动调度复用 TRADING_DAY_CHECK_ENABLED，非交易日或未收盘时会跳过。',
+      'RECOMMENDATION_LLM_REVIEW_ENABLED 会对 Top 推荐运行深度分析，可能消耗模型额度。',
+    ],
+    impact: ['影响 /recommendations 页面、推荐历史文件、DB 索引、通知摘要和每日 schedule 任务。'],
+    notes: [
+      '保存配置不会立刻启动 scheduler；需要以 schedule 模式运行并重启相关进程。',
+      '调整筛选细则请修改 config/recommendation_profiles 下的 TOML profile。',
+    ],
+  },
   'settings.system.HTTP_PROXY': {
     title: '网络代理',
     summary: '为外部 API、模型服务或搜索请求配置代理地址。',
@@ -1384,6 +1399,21 @@ const settingsHelpEnUS: SettingsHelpMap = {
     valueNotes: ['Uses market calendars for A-share, HK, US, and other supported markets.'],
     impact: ['Affects whether manual and scheduled runs execute on holidays.'],
     notes: ['Disabling it can produce reports with missing realtime quotes on closed markets.'],
+  },
+  'settings.system.recommendation': {
+    title: 'After-Close Recommendations',
+    summary: 'Controls full-market A-share after-close recommendations, scheduling, notifications, profile selection, and retention.',
+    usage: 'Rule thresholds live in the TOML profile. Use these settings for enablement, run time, notifications, and profile path.',
+    valueNotes: [
+      'Use an after-close RECOMMENDATION_SCHEDULE_TIME for A-shares, such as 15:30.',
+      'Scheduled runs reuse TRADING_DAY_CHECK_ENABLED and skip non-trading days or pre-close sessions.',
+      'RECOMMENDATION_LLM_REVIEW_ENABLED runs deep analysis for Top recommendations and can consume model quota.',
+    ],
+    impact: ['Affects the /recommendations page, persisted recommendation files, DB index, notification summary, and daily scheduler job.'],
+    notes: [
+      'Saving settings does not start a scheduler immediately; run and restart the process in schedule mode.',
+      'Edit the TOML profiles under config/recommendation_profiles to tune screening rules.',
+    ],
   },
   'settings.system.HTTP_PROXY': {
     title: 'Network Proxy',

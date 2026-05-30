@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analysisApi, DuplicateTaskError } from '../../api/analysis';
 import { agentApi } from '../../api/agent';
 import { historyApi } from '../../api/history';
+import { recommendationsApi } from '../../api/recommendations';
 import { systemConfigApi } from '../../api/systemConfig';
 import { useStockPoolStore } from '../../stores';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
@@ -52,6 +53,13 @@ vi.mock('../../api/systemConfig', () => ({
 vi.mock('../../api/agent', () => ({
   agentApi: {
     getSkills: vi.fn(),
+  },
+}));
+
+vi.mock('../../api/recommendations', () => ({
+  recommendationsApi: {
+    getLatest: vi.fn(),
+    run: vi.fn(),
   },
 }));
 
@@ -126,6 +134,15 @@ describe('HomePage', () => {
       tasks: [],
     });
     vi.mocked(agentApi.getSkills).mockResolvedValue({ skills: [], default_skill_id: '' });
+    vi.mocked(recommendationsApi.getLatest).mockResolvedValue(null);
+    vi.mocked(recommendationsApi.run).mockResolvedValue({
+      runId: 'run-1',
+      market: 'cn',
+      tradeDate: '2026-03-18',
+      generatedAt: '2026-03-18T15:30:00+08:00',
+      summary: {},
+      warnings: [],
+    });
     vi.mocked(historyApi.getDiagnostics).mockResolvedValue({
       status: 'unknown',
       statusLabel: '未知',
@@ -214,6 +231,30 @@ describe('HomePage', () => {
       limit: 20,
       items: [],
     });
+    vi.mocked(recommendationsApi.getLatest).mockResolvedValue({
+      meta: {
+        runId: 'run-1',
+        tradeDate: '2026-03-18',
+        generatedAt: '2026-03-18T15:30:00+08:00',
+        summary: { recommendedCount: 1 },
+      },
+      recommendations: [
+        {
+          code: '600519',
+          name: '贵州茅台',
+          rank: 1,
+          strategy: 'trend_pullback',
+          selectionScore: 78,
+          recommendationLabel: '只看不追',
+          llmReviewStatus: 'downgraded',
+          analysisQueryId: 'review-600519',
+          beginnerAction: 'LLM 复核提示风险，先观察',
+          negativeReasons: 'LLM复核: 深度分析提示需要等待或谨慎观察',
+          watchPrice: 100,
+          stopLoss: 95,
+        },
+      ],
+    });
 
     render(
       <MemoryRouter>
@@ -225,6 +266,10 @@ describe('HomePage', () => {
     expect(screen.getByRole('heading', { name: '开始分析', level: 3 })).toBeInTheDocument();
     expect(screen.getByText('输入股票代码进行分析，或从左侧选择历史报告查看。')).toBeInTheDocument();
     expect(screen.getByText('暂无历史分析记录')).toBeInTheDocument();
+    expect(screen.getByText('今日盘后推荐')).toBeInTheDocument();
+    expect(screen.getByText('贵州茅台')).toBeInTheDocument();
+    expect(screen.getByText('复核降级 · review-600519')).toBeInTheDocument();
+    expect(screen.getByText(/LLM复核/)).toBeInTheDocument();
   });
 
   it('surfaces duplicate task warnings from dashboard submission', async () => {
@@ -551,8 +596,8 @@ describe('HomePage', () => {
     await waitFor(() => {
       expect(screen.queryByText('暂无更多同股历史分析')).not.toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: /继续观察买点/ })).toBeInTheDocument();
-    expect(screen.getByText(/共 1 次分析/)).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /继续观察买点/ })).toBeInTheDocument();
+    expect(screen.getByText(/已加载 1 \/ 1 条/)).toBeInTheDocument();
 
     const historyCalls = vi.mocked(historyApi.getList).mock.calls.filter((call) => call[0]?.stockCode === '600519');
     expect(historyCalls).toHaveLength(3);
