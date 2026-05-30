@@ -48,7 +48,7 @@ export interface ReportMeta {
   createdAt: string;
   currentPrice?: number;
   changePct?: number;
-  modelUsed?: string;  // LLM model used for analysis
+  modelUsed?: string;  // Display-only model snapshot from persisted history; not used for runtime model selection
 }
 
 /** Sentiment label */
@@ -97,11 +97,61 @@ export interface SectorRankings {
   bottom?: SectorRankingItem[];
 }
 
+export type AnalysisContextPackBlockStatus =
+  | 'available'
+  | 'missing'
+  | 'not_supported'
+  | 'fallback'
+  | 'stale'
+  | 'estimated'
+  | 'partial';
+
+export interface AnalysisContextPackOverviewSubject {
+  code: string;
+  stockName?: string | null;
+  market?: string | null;
+}
+
+export interface AnalysisContextPackOverviewBlock {
+  key: string;
+  label: string;
+  status: AnalysisContextPackBlockStatus;
+  source?: string | null;
+  warnings: string[];
+  missingReasons: string[];
+}
+
+export interface AnalysisContextPackOverviewCounts {
+  available: number;
+  missing: number;
+  notSupported: number;
+  fallback: number;
+  stale: number;
+  estimated: number;
+  partial: number;
+}
+
+export interface AnalysisContextPackOverviewMetadata {
+  triggerSource?: string | null;
+  newsResultCount?: number | null;
+}
+
+export interface AnalysisContextPackOverview {
+  packVersion: string;
+  createdAt?: string | null;
+  subject: AnalysisContextPackOverviewSubject;
+  blocks: AnalysisContextPackOverviewBlock[];
+  counts: AnalysisContextPackOverviewCounts;
+  warnings: string[];
+  metadata: AnalysisContextPackOverviewMetadata;
+}
+
 /** Details section */
 export interface ReportDetails {
   newsContent?: string;
   rawResult?: Record<string, unknown>;
   contextSnapshot?: Record<string, unknown>;
+  analysisContextPackOverview?: AnalysisContextPackOverview | null;
   financialReport?: Record<string, unknown>;
   dividendMetrics?: Record<string, unknown>;
   belongBoards?: RelatedBoard[];
@@ -250,9 +300,24 @@ export interface HistoryItem {
   stockCode: string;
   stockName?: string;
   reportType?: ReportType;
+  trendPrediction?: string;
+  analysisSummary?: string;
   sentimentScore?: number;
   operationAdvice?: string;
+  currentPrice?: number;
+  changePct?: number;
+  volumeRatio?: number;
+  turnoverRate?: number;
+  modelUsed?: string;  // Display-only model snapshot from persisted history; runtime provider/model/base URL still come from analyzer configuration
   createdAt: string;
+}
+
+export type StockHistoryRange = 'all' | '30d' | '90d';
+
+export interface StockHistoryFilters {
+  range: StockHistoryRange;
+  model: string;
+  sort: 'desc' | 'asc';
 }
 
 /** History list response */
