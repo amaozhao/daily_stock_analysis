@@ -66,12 +66,44 @@ def _analysis_context_pack_overview() -> dict:
             "stale": 0,
             "estimated": 0,
             "partial": 0,
+            "fetch_failed": 0,
+        },
+        "data_quality": {
+            "overall_score": 100,
+            "level": "good",
+            "block_scores": {
+                "quote": 100,
+                "daily_bars": 100,
+                "technical": 100,
+                "news": 100,
+                "fundamentals": 100,
+                "chip": 100,
+            },
+            "limitations": [],
         },
         "warnings": [],
         "metadata": {
             "trigger_source": "api",
             "news_result_count": 2,
         },
+    }
+
+
+def _market_phase_summary() -> dict:
+    return {
+        "market": "cn",
+        "phase": "intraday",
+        "market_local_time": "2026-03-27T10:00:00+08:00",
+        "session_date": "2026-03-27",
+        "effective_daily_bar_date": "2026-03-26",
+        "is_trading_day": True,
+        "is_market_open_now": True,
+        "is_partial_bar": True,
+        "minutes_to_open": None,
+        "minutes_to_close": 300,
+        "trigger_source": "api",
+        "analysis_intent": "auto",
+        "warnings": ["partial_bar"],
     }
 
 
@@ -291,6 +323,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
                     "turnover_rate": "11.46",
                 },
             },
+            "market_phase_summary": _market_phase_summary(),
         }
 
         saved = self.db.save_analysis_history(
@@ -317,6 +350,100 @@ class AnalysisHistoryTestCase(unittest.TestCase):
         self.assertEqual(item["change_pct"], -4.61)
         self.assertEqual(item["volume_ratio"], 1.17)
         self.assertEqual(item["turnover_rate"], 11.46)
+        self.assertEqual(item["market_phase_summary"]["phase"], "intraday")
+        self.assertEqual(item["market_phase_summary"]["minutes_to_close"], 300)
+
+    def test_market_review_history_can_be_filtered_without_stock_records(self) -> None:
+        """Market review records should be queryable as a dedicated history collection."""
+        stock_result = self._build_result()
+        market_result = AnalysisResult(
+            code="MARKET",
+            name="大盘复盘",
+            sentiment_score=50,
+            trend_prediction="大盘复盘",
+            operation_advice="查看复盘",
+            analysis_summary="大盘复盘摘要",
+        )
+
+        self.assertEqual(
+            self.db.save_analysis_history(
+                result=stock_result,
+                query_id="query_stock_history",
+                report_type="detailed",
+                news_content="个股正文",
+                context_snapshot=None,
+                save_snapshot=False,
+            ),
+            1,
+        )
+        self.assertEqual(
+            self.db.save_analysis_history(
+                result=market_result,
+                query_id="query_market_review_history",
+                report_type="market_review",
+                news_content="大盘复盘正文",
+                context_snapshot={
+                    "report_kind": "market_review",
+                    "market_review_payload": {
+                        "kind": "market_review",
+                        "sections": [{"title": "复盘", "markdown": "结构化正文"}],
+                    },
+                },
+                save_snapshot=True,
+            ),
+            1,
+        )
+
+        service = HistoryService(self.db)
+        payload = service.get_history_list(
+            stock_code="MARKET",
+            report_type="market_review",
+            page=1,
+            limit=10,
+        )
+
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["stock_code"], "MARKET")
+        self.assertEqual(payload["items"][0]["report_type"], "market_review")
+
+    def test_distinct_stock_bar_excludes_market_review_records_by_default(self) -> None:
+        """The stock bar aggregation should not mix MARKET into ordinary stock entries."""
+        stock_result = self._build_result()
+        market_result = AnalysisResult(
+            code="MARKET",
+            name="大盘复盘",
+            sentiment_score=50,
+            trend_prediction="大盘复盘",
+            operation_advice="查看复盘",
+            analysis_summary="大盘复盘摘要",
+        )
+
+        self.assertEqual(
+            self.db.save_analysis_history(
+                result=stock_result,
+                query_id="query_stock_bar_stock",
+                report_type="detailed",
+                news_content="个股正文",
+                context_snapshot=None,
+                save_snapshot=False,
+            ),
+            1,
+        )
+        self.assertEqual(
+            self.db.save_analysis_history(
+                result=market_result,
+                query_id="query_stock_bar_market",
+                report_type="market_review",
+                news_content="大盘复盘正文",
+                context_snapshot=None,
+                save_snapshot=False,
+            ),
+            1,
+        )
+
+        records = self.db.get_distinct_stocks_from_history(limit=10)
+
+        self.assertEqual([record.code for record in records], ["600519"])
 
     def test_history_list_matches_equivalent_suffixed_stock_codes(self) -> None:
         """Same-stock history should include rows saved with supported suffixed codes."""
@@ -853,6 +980,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
             self.skipTest("fastapi is not installed in this test environment")
 
         overview = _analysis_context_pack_overview()
+        phase_summary = _market_phase_summary()
         query_id = "query_context_pack_overview_001"
         saved = self.db.save_analysis_history(
             result=self._build_result(),
@@ -862,6 +990,10 @@ class AnalysisHistoryTestCase(unittest.TestCase):
             context_snapshot={
                 "enhanced_context": {"code": "600519"},
                 "analysis_context_pack_overview": overview,
+                "market_phase_summary": {
+                    **phase_summary,
+                    "market_phase_context": {"raw": True},
+                },
             },
             save_snapshot=True,
         )
@@ -878,9 +1010,20 @@ class AnalysisHistoryTestCase(unittest.TestCase):
             report.details.analysis_context_pack_overview.metadata.trigger_source,
             "api",
         )
+        self.assertEqual(
+            report.details.analysis_context_pack_overview.data_quality.overall_score,
+            100,
+        )
+        self.assertIsNotNone(report.meta.market_phase_summary)
+        self.assertEqual(report.meta.market_phase_summary.phase, "intraday")
+        self.assertEqual(report.meta.market_phase_summary.minutes_to_close, 300)
         self.assertEqual(report.details.analysis_context_pack_overview.metadata.news_result_count, 2)
         self.assertNotIn(
             "analysis_context_pack_overview",
+            report.details.context_snapshot,
+        )
+        self.assertNotIn(
+            "market_phase_summary",
             report.details.context_snapshot,
         )
 
@@ -911,6 +1054,7 @@ class AnalysisHistoryTestCase(unittest.TestCase):
             self.assertIsNone(row.context_snapshot)
 
         report = get_history_detail(str(record_id), db_manager=self.db)
+        self.assertIsNone(report.meta.market_phase_summary)
         self.assertIsNone(report.details.analysis_context_pack_overview)
         self.assertIsNone(report.details.context_snapshot)
 

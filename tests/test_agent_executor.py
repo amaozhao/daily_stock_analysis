@@ -28,11 +28,21 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-from src.agent.executor import AgentExecutor, AgentResult
+from src.agent.executor import (
+    AGENT_SYSTEM_PROMPT,
+    LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT,
+    AgentExecutor,
+    AgentResult,
+)
 from src.agent.llm_adapter import LLMResponse, ToolCall
 from src.agent.runner import parse_dashboard_json, run_agent_loop, serialize_tool_result
 from src.agent.tools.registry import ToolRegistry, ToolDefinition, ToolParameter
+from src.analysis_context_pack_prompt import format_analysis_context_pack_prompt_section
 from src.config import Config
+from src.services.analysis_context_builder import (
+    AnalysisContextBuilder,
+    PipelineAnalysisArtifacts,
+)
 from src.storage import DatabaseManager
 
 
@@ -61,6 +71,44 @@ def _make_mock_adapter():
     return adapter
 
 
+def _build_analysis_context_pack_summary(
+    *,
+    realtime_quote=None,
+    fundamental_context=None,
+) -> str:
+    artifacts = PipelineAnalysisArtifacts(
+        code="600519",
+        stock_name="贵州茅台",
+        market="cn",
+        phase=None,
+        base_context={
+            "today": {"close": 1880.0},
+            "yesterday": {"close": 1870.0},
+            "date": "2026-03-26",
+        },
+        enhanced_context={},
+        realtime_quote=realtime_quote
+        if realtime_quote is not None
+        else {"price": 1880.0, "source": "mock_quote"},
+        trend_result={"trend_status": "available"},
+        chip_data={"source": "mock_chip", "date": "2026-03-26"},
+        fundamental_context=fundamental_context
+        if fundamental_context is not None
+        else {
+            "status": "ok",
+            "coverage": {"valuation": "ok"},
+            "source_chain": [{"provider": "fundamental_pipeline"}],
+        },
+        news_context="新闻摘要",
+        news_result_count=1,
+        metadata={"trigger_source": "api"},
+    )
+    return format_analysis_context_pack_prompt_section(
+        AnalysisContextBuilder.build(artifacts),
+        report_language="zh",
+    )
+
+
 SAMPLE_DASHBOARD = {
     "stock_name": "贵州茅台",
     "sentiment_score": 75,
@@ -81,6 +129,15 @@ SAMPLE_DASHBOARD = {
     "trend_analysis": "Upward trend",
     "technical_analysis": "MACD golden cross",
 }
+
+
+def test_agent_system_prompts_require_phase_decision_contract() -> None:
+    for prompt in (LEGACY_DEFAULT_AGENT_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT):
+        assert '"phase_decision"' in prompt
+        assert '"watch_conditions"' in prompt
+        assert '"data_limitations"' in prompt
+        assert "quote/daily_bars/technical 存在 stale、fallback、missing、fetch_failed、partial 或 estimated" in prompt
+        assert "`confidence_level` 不得为高" in prompt
 
 
 # ============================================================
@@ -920,6 +977,13 @@ class TestBuildUserMessage(unittest.TestCase):
         self.assertIn("报告类型: daily", msg)
 
     def test_message_renders_readable_market_phase_context_without_raw_keys(self):
+        summary = _build_analysis_context_pack_summary(
+            realtime_quote={
+                "price": 1880.0,
+                "source": "fallback",
+                "fallback_from": "primary_realtime_provider",
+            },
+        )
         msg = self.executor._build_user_message(
             "Analyze",
             context={
@@ -932,13 +996,16 @@ class TestBuildUserMessage(unittest.TestCase):
                     "effective_daily_bar_date": "2026-03-26",
                     "is_partial_bar": True,
                 },
-                "analysis_context_pack_summary": "\n## 分析上下文包摘要\n- 数据块状态：行情 available\n",
+                "analysis_context_pack_summary": summary,
                 "realtime_quote": {"price": 1880.0},
             },
         )
         self.assertIn("股票代码: 600519", msg)
         self.assertIn("市场阶段上下文", msg)
         self.assertIn("分析上下文包摘要", msg)
+        self.assertIn("数据限制", msg)
+        self.assertIn("已知限制：行情：降级", msg)
+        self.assertIn("confidence_level 不得为高", msg)
         self.assertIn("盘中", msg)
         self.assertIn("不得当作完整日线复盘", msg)
         self.assertLess(msg.index("市场阶段上下文"), msg.index("分析上下文包摘要"))

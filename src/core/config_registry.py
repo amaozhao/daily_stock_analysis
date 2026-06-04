@@ -10,7 +10,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
-from src.config import AGENT_CONTEXT_COMPRESSION_PROFILES, AGENT_MAX_STEPS_DEFAULT
+from src.config import (
+    AGENT_CONTEXT_COMPRESSION_PROFILES,
+    AGENT_MAX_STEPS_DEFAULT,
+    DEFAULT_ALPHASIFT_INSTALL_SPEC,
+)
 from src.notification_noise import NOTIFICATION_SEVERITIES
 from src.notification_routing import ROUTABLE_NOTIFICATION_CHANNELS
 
@@ -475,6 +479,55 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             },
         ],
         "warning_codes": [],
+    },
+    "ALPHASIFT_ENABLED": {
+        "title": "AlphaSift Screening",
+        "description": "Enable the optional AlphaSift stock screening tab. Disabled by default.",
+        "category": "data_source",
+        "data_type": "boolean",
+        "ui_control": "switch",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "false",
+        "options": [],
+        "validation": {},
+        "display_order": 17,
+        "help_key": "settings.data_source.ALPHASIFT_ENABLED",
+        "examples": [
+            "ALPHASIFT_ENABLED=false",
+            "ALPHASIFT_ENABLED=true",
+        ],
+        "docs": [
+            {
+                "label": "AlphaSift 集成说明",
+                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/alphasift-integration.md",
+            },
+        ],
+    },
+    "ALPHASIFT_INSTALL_SPEC": {
+        "title": "AlphaSift Install Spec",
+        "description": "Pinned AlphaSift pip install spec used by source deployments and desktop packaging.",
+        "category": "data_source",
+        "data_type": "string",
+        "ui_control": "password",
+        "is_sensitive": True,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": DEFAULT_ALPHASIFT_INSTALL_SPEC,
+        "options": [],
+        "validation": {},
+        "display_order": 18,
+        "help_key": "settings.data_source.ALPHASIFT_INSTALL_SPEC",
+        "examples": [
+            f"ALPHASIFT_INSTALL_SPEC={DEFAULT_ALPHASIFT_INSTALL_SPEC}",
+        ],
+        "docs": [
+            {
+                "label": "AlphaSift 集成说明",
+                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/alphasift-integration.md",
+            },
+        ],
     },
     "REALTIME_SOURCE_PRIORITY": {
         "title": "Realtime Source Priority",
@@ -3177,6 +3230,37 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             {
                 "label": "完整指南：环境变量完整列表",
                 "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/full-guide.md#环境变量完整列表",
+            },
+        ],
+        "warning_codes": [],
+    },
+    "SAVE_CONTEXT_SNAPSHOT": {
+        "title": "Save Context Snapshot",
+        "description": "Persist the full analysis_history.context_snapshot for history/API/Web transparency. Disable only to stop storing snapshots; it does not disable AnalysisContextPack prompt summaries during the current run.",
+        "category": "system",
+        "data_type": "boolean",
+        "ui_control": "switch",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": "true",
+        "options": [],
+        "validation": {},
+        "display_order": 52,
+        "help_key": "settings.system.SAVE_CONTEXT_SNAPSHOT",
+        "examples": [
+            "SAVE_CONTEXT_SNAPSHOT=true",
+            "SAVE_CONTEXT_SNAPSHOT=false",
+            "python main.py --no-context-snapshot",
+        ],
+        "docs": [
+            {
+                "label": "AnalysisContextPack P6 文档、迁移与回滚",
+                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/analysis-context-pack.md#p6-文档迁移与回滚",
+            },
+            {
+                "label": "完整指南：其他配置",
+                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/full-guide.md#其他配置",
             },
         ],
         "warning_codes": [],
