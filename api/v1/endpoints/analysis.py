@@ -17,6 +17,7 @@
 """
 
 import asyncio
+import copy
 import json
 import logging
 import re
@@ -29,6 +30,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from api.deps import get_config_dep
+from api.v1.errors import api_error
 from api.v1.schemas.analysis import (
     AnalyzeRequest,
     AnalysisResultResponse,
@@ -129,6 +131,17 @@ def _build_market_review_runtime(config: Config, source_message: Optional[Any] =
     return _runtime_build_market_review_runtime(config, source_message)
 
 
+def _with_request_report_language(config: Config, report_language: Optional[str]) -> Config:
+    """Return a request-scoped config copy when the caller overrides report language."""
+    normalized = normalize_report_language(report_language, default="")
+    if not normalized:
+        return config
+
+    scoped_config = copy.copy(config)
+    scoped_config.report_language = normalized
+    return scoped_config
+
+
 def _run_market_review_background(
     send_notification: bool,
     override_region: Optional[str] = None,
@@ -146,9 +159,11 @@ def _run_market_review_background(
             "notifier": notifier,
             "analyzer": analyzer,
             "search_service": search_service,
+            "config": runtime_config,
             "send_notification": send_notification,
             "override_region": override_region,
             "return_structured": True,
+            "config": runtime_config,
         }
         if query_id:
             review_kwargs["query_id"] = query_id
@@ -166,13 +181,7 @@ def _run_market_review_background(
 
 
 def _invalid_analysis_input_error() -> HTTPException:
-    return HTTPException(
-        status_code=400,
-        detail={
-            "error": "validation_error",
-            "message": "请输入有效的股票代码或股票名称",
-        },
-    )
+    return api_error(400, "validation_error", "请输入有效的股票代码或股票名称")
 
 
 def _is_obviously_invalid_analysis_input(text: str) -> bool:
@@ -268,13 +277,7 @@ def trigger_analysis(
         stock_codes.extend(request.stock_codes)
 
     if not stock_codes:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "validation_error",
-                "message": "必须提供 stock_code 或 stock_codes 参数"
-            }
-        )
+        raise api_error(400, "validation_error", "必须提供 stock_code 或 stock_codes 参数")
 
     # Normalize and de-duplicate inputs while preserving compatibility.
     resolved = [_resolve_and_normalize_input(c) for c in stock_codes]
@@ -295,32 +298,18 @@ def trigger_analysis(
     # Limit the number of stocks in a single request to prevent DoS
     MAX_BATCH_SIZE = 50
     if len(stock_codes) > MAX_BATCH_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "validation_error",
-                "message": f"单次分析请求最多支持 {MAX_BATCH_SIZE} 只股票"
-            }
-        )
+        raise api_error(400, "validation_error", f"单次分析请求最多支持 {MAX_BATCH_SIZE} 只股票")
 
     if not stock_codes:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "validation_error",
-                "message": "股票代码不能为空或仅包含空白字符"
-            }
-        )
+        raise api_error(400, "validation_error", "股票代码不能为空或仅包含空白字符")
 
     # Sync mode only supports single-stock analysis.
     if not request.async_mode:
         if len(stock_codes) > 1:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "validation_error",
-                    "message": "同步模式仅支持单只股票分析，请使用 async_mode=true 进行批量分析"
-                }
+            raise api_error(
+                400,
+                "validation_error",
+                "同步模式仅支持单只股票分析，请使用 async_mode=true 进行批量分析",
             )
         return _handle_sync_analysis(stock_codes[0], request)
 
@@ -349,6 +338,7 @@ def _handle_async_analysis_batch(
     notify = getattr(request, "notify", True)
     skills = getattr(request, "skills", None)
     analysis_phase = request.analysis_phase
+    report_language = normalize_report_language(getattr(request, "report_language", None), default="")
 
     submit_kwargs = dict(
         stock_codes=stock_codes,
@@ -360,6 +350,8 @@ def _handle_async_analysis_batch(
         force_refresh=request.force_refresh,
         notify=notify,
     )
+    if report_language:
+        submit_kwargs["report_language"] = report_language
     if skills is not None:
         submit_kwargs["skills"] = skills
 
@@ -449,17 +441,12 @@ def _handle_sync_analysis(
             send_notification=getattr(request, "notify", True),
             skills=getattr(request, "skills", None),
             analysis_phase=request.analysis_phase,
+            report_language=getattr(request, "report_language", None),
         )
 
         if result is None:
             error_message = service.last_error or f"分析股票 {stock_code} 失败"
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": "analysis_failed",
-                    "message": error_message,
-                }
-            )
+            raise api_error(500, "analysis_failed", error_message)
 
         # 构建报告结构
         report_data = result.get("report", {})
@@ -490,13 +477,7 @@ def _handle_sync_analysis(
         raise
     except Exception as e:
         logger.error(f"分析失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "internal_error",
-                "message": f"分析过程发生错误: {str(e)}"
-            }
-        )
+        raise api_error(500, "internal_error", f"分析过程发生错误: {str(e)}")
 
 
 # ============================================================
@@ -522,7 +503,11 @@ def trigger_market_review(
     """Trigger market review from Web/API without blocking the request."""
     request = request or MarketReviewRequest()
 
-    override_region = _compute_market_review_override_region(config)
+    runtime_config = _with_request_report_language(
+        config,
+        getattr(request, "report_language", None),
+    )
+    override_region = _compute_market_review_override_region(runtime_config)
     if override_region == "":
         return MarketReviewAccepted(
             status="accepted",
@@ -531,15 +516,9 @@ def trigger_market_review(
             trace_id=None,
         )
 
-    lock_token = _try_acquire_market_review_lock(config)
+    lock_token = _try_acquire_market_review_lock(runtime_config)
     if lock_token is None:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": "duplicate_market_review",
-                "message": "大盘复盘正在执行中，请稍后再试",
-            },
-        )
+        raise api_error(409, "duplicate_market_review", "大盘复盘正在执行中，请稍后再试")
 
     try:
         task_id = uuid.uuid4().hex
@@ -548,7 +527,7 @@ def trigger_market_review(
                 request.send_notification,
                 override_region=override_region,
                 lock_token=lock_token,
-                config=config,
+                config=runtime_config,
                 query_id=task_id,
             ),
             stock_code="market_review",
@@ -1028,22 +1007,10 @@ def get_analysis_status(task_id: str) -> TaskStatus:
 
     except Exception as e:
         logger.error(f"查询任务状态失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "internal_error",
-                "message": f"查询任务状态失败: {str(e)}"
-            }
-        )
+        raise api_error(500, "internal_error", f"查询任务状态失败: {str(e)}")
 
     # 3. 任务不存在
-    raise HTTPException(
-        status_code=404,
-        detail={
-            "error": "not_found",
-            "message": f"任务 {task_id} 不存在或已过期"
-        }
-    )
+    raise api_error(404, "not_found", f"任务 {task_id} 不存在或已过期")
 
 
 # ============================================================

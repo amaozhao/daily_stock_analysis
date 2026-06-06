@@ -136,6 +136,9 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 
 > Compatibility note: `REPORT_SHOW_LLM_MODEL` keeps the previous default-visible behavior (`true`) and only changes report footer rendering. It does not alter provider/model/Base URL, LiteLLM routing, or runtime model persistence/migration/cleanup semantics. Rollback is to remove the variable or set it back to `true`.
 
+> `REPORT_LANGUAGE` only affects report text and report page fixed copy. Web UI chrome language (navigation, login, settings, shell labels, shared controls) is intentionally independent and stored in browser `localStorage` as `dsa.uiLanguage`.
+> UI language resolution is: explicit localStorage value (`zh` or `en`) -> browser language (`navigator.languages` / `navigator.language`) -> default `zh`.
+
 #### Other Configuration
 
 | Secret Name | Description | Required |
@@ -275,7 +278,9 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 > 3. Create a group and add the app bot
 > 4. Add the group as a collaborator to the cloud drive folder (with manage permissions)
 >
-> Note: `FEISHU_APP_ID` / `FEISHU_APP_SECRET` are for Feishu app mode, cloud documents, or Stream Bot mode. They do not enable group webhook notifications by themselves. For simple push notifications, use `FEISHU_WEBHOOK_URL` first.
+> Note: `FEISHU_APP_ID` / `FEISHU_APP_SECRET` are for Feishu app mode, cloud documents, or Stream Bot mode. They do not enable group webhook notifications by themselves. For simple group push notifications, use `FEISHU_WEBHOOK_URL` first.
+>
+> Supplement: When `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `FEISHU_CHAT_ID` are all configured, they enable the Feishu App Bot active notification channel without relying on group webhooks. `FEISHU_RECEIVE_ID_TYPE` defaults to `chat_id`; set it to `open_id` for P2P delivery. This uses the Feishu OpenAPI Bot session route, which is independent of the group webhook path.
 
 ### Search Service Configuration
 
@@ -791,10 +796,12 @@ FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/your_hook_token
    - **Signature verification enabled**: copy the secret shown in Feishu into `FEISHU_WEBHOOK_SECRET`. **Both sides must be enabled or disabled together** — if Feishu has signing on but `FEISHU_WEBHOOK_SECRET` is missing (or vice versa), every request will be rejected.
    - **Keyword enabled**: copy the exact same keyword into `FEISHU_WEBHOOK_KEYWORD`. The app will prepend it to every message automatically; no need to change report templates.
    - **IP allowlist enabled**: make sure the outbound IP of your runtime (local / Docker / GitHub Actions each have different IPs) is on the allowlist.
-4. `FEISHU_APP_ID` / `FEISHU_APP_SECRET` are for Feishu app / Stream Bot / cloud document flows only — they do **not** trigger group webhook notifications and must not be used instead of `FEISHU_WEBHOOK_URL`.
+4. `FEISHU_APP_ID` / `FEISHU_APP_SECRET` are for Feishu app / Stream Bot / cloud document flows only. They do **not** trigger group webhook notifications and must not be used alone instead of `FEISHU_WEBHOOK_URL`.
+5. If `FEISHU_APP_ID` / `FEISHU_APP_SECRET` are configured together with `FEISHU_CHAT_ID`, the Feishu App Bot can push notifications directly to a specified chat or user, no group webhook required. `FEISHU_RECEIVE_ID_TYPE` defaults to `chat_id`; set it to `open_id` for P2P delivery. This uses the Feishu OpenAPI Bot session route, independent of the group webhook path.
+6. The App Bot send path reuses the existing `lark-oapi>=1.0.0` dependency already listed in `requirements.txt`; standard source installs, Docker, the GitHub Actions daily workflow, and desktop builds all install it through `pip install -r requirements.txt`. References: [Feishu message create OpenAPI](https://open.feishu.cn/document/server-docs/im-v1/message/create), [lark-oapi PyPI](https://pypi.org/project/lark-oapi/), [SDK repo](https://github.com/larksuite/oapi-sdk-python).
 
 **Common failure causes:**
-- Only `FEISHU_APP_ID` / `FEISHU_APP_SECRET` were set, but `FEISHU_WEBHOOK_URL` was not configured
+- Only `FEISHU_APP_ID` / `FEISHU_APP_SECRET` were set, with neither `FEISHU_WEBHOOK_URL` nor the App Bot active-delivery target `FEISHU_CHAT_ID` configured
 - The bot has Signature security enabled, but `FEISHU_WEBHOOK_SECRET` was not set locally (or was mistakenly set to `FEISHU_APP_SECRET`)
 - The bot has Keyword security enabled, but `FEISHU_WEBHOOK_KEYWORD` was not set locally
 - The bot was not added to the target group, or group permissions block it from posting
@@ -1181,6 +1188,7 @@ FastAPI provides RESTful API service for configuration management and triggering
 ### Features
 
 - **Configuration Management** - View/modify watchlist
+- **UI Language Switch** - Toggle UI language (`zh`/`en`) on login page, shell/navigation, settings page, and shared controls; this switch is independent of `REPORT_LANGUAGE`.
 - **Quick Analysis** - Trigger stock analysis via API; the Home page also provides a Market Review button that starts a background market recap in Docker/server mode
 - **Strategy selection** - The Home page supports explicitly selecting analysis strategy skills; when `skills` is omitted, analysis uses the server default strategy so legacy clients keep existing behavior
 - **First-run Setup Hint** - The Home page reads the read-only setup status and points users to Settings when required items such as the primary LLM channel or watchlist are missing
@@ -1191,6 +1199,15 @@ FastAPI provides RESTful API service for configuration management and triggering
 - **Input data-block visibility** - Regular analysis reports expose a low-sensitivity `AnalysisContextPack` overview through history details, sync responses, and completed task status; the Web report page shows the data-block summary collapsed after Strategy and News, with block status, source, missing reasons, and fallback summaries available on expansion.
 - **Backtest Validation** - Evaluate historical analysis accuracy, query direction win rate and simulated returns
 - **API Documentation** - Visit `/docs` for Swagger UI
+
+### Product behavior notes
+
+For this feature, the product behavior is:
+
+- UI language is independent from report language: `dsa.uiLanguage` (browser persistence) controls shell/login/settings text, while `REPORT_LANGUAGE` controls report text and report-page fixed copy (`zh`/`en`).
+- `dsa.uiLanguage` follows local persistence -> browser language -> default `zh`.
+- This change only adds request-scope report language override parameters; it does not modify `provider`, `model`, `base_url`, or migration/cleanup behavior.
+- PR-level verification output, screenshots, and command logs are maintained in PR description, not in this usage guide.
 
 ### API Endpoints
 
@@ -1214,8 +1231,10 @@ FastAPI provides RESTful API service for configuration management and triggering
 > Note: `POST /api/v1/analysis/analyze` supports only one stock when `async_mode=false`; batch `stock_codes` requires `async_mode=true`. The async `202` response returns a single `task_id` for one stock, or an `accepted` / `duplicates` summary for batch requests.
 > Note: `POST /api/v1/analysis/analyze` accepts `skills` as an array of strategy IDs; if omitted, server defaults are used. The legacy field `strategies` is still accepted for backward compatibility.
 > Note: `POST /api/v1/analysis/analyze` accepts `analysis_phase=auto|premarket|intraday|postmarket`, defaulting to `auto`. Non-`auto` only overrides the phase and derived phase flags for this run; it does not rewrite real trading-calendar timestamps. Accepted responses, in-memory task status, task lists, and SSE echo the requested phase, while the final report phase remains `report.meta.market_phase_summary.phase`.
+> Note: `POST /api/v1/analysis/analyze` accepts `report_language=zh|en` (legacy-compatible alias `reportLanguage`). When omitted, it falls back to global `REPORT_LANGUAGE`. This parameter is request-scoped only and influences report output language for this run, including `report.meta.report_language` in responses.
 > Note: The Web Home page exposes an explicit strategy selector. When users do not pick one, `skills` is not sent and legacy behavior is preserved; when selected, it is passed through to this endpoint and persisted in task status/history snapshots.
 > Note: `POST /api/v1/analysis/market-review` follows the same runtime configuration path as CLI/Bot market review (`GeminiAnalyzer(config=...)`, search setup, and prompt/rendering pipeline). The provider compatibility path prioritizes `litellm_model` and `llm_model_list`, then falls back to existing legacy keys (`GEMINI_*`, `OPENAI_*`, `ANTHROPIC_*`, `DEEPSEEK_*`) when those are not set; provider names, Base URL, and LiteLLM routing semantics are otherwise unchanged.
+> Note: `POST /api/v1/analysis/market-review` also accepts `report_language=zh|en` / `reportLanguage` to set report language for that request. If omitted, it falls back to global `REPORT_LANGUAGE`; Bot/CLI/manual `/market-review` calls keep using global config and do not carry request-level override.
 > Audit note: priority and fallback are defined by `Config._load_from_env()` in `src/config.py` (`LITELLM_CONFIG` > `LLM_CHANNELS` > legacy). Regression coverage is in `tests/test_llm_channel_config.py` (configuration source parsing) and `tests/test_market_review_runtime.py` (shared runtime assembly). The endpoint lock is process/host-level only; multi-instance deployments still need external distributed idempotency controls.
 > Note: Once `/api/v1/analysis/market-review` completes, the report is persisted with `report_type=market_review`; open `/api/v1/history` and `/api/v1/history/{record_id}` (or Markdown history endpoints) to view it directly without re-running analysis.
 > Note: `/api/v1/analysis/market-review` responses and persisted history include a structured `market_review_payload` with fields like `market_scope`, `sections`, `sectors`, `news`, `market_light`, `indices`, etc. Web rendering and history detail use the same structure and fall back to raw `markdown_report` only if the structure is unavailable.
