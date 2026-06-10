@@ -5,23 +5,102 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import os
+import tempfile
 import time
 import threading
 from collections.abc import Awaitable, Callable
 from contextvars import copy_context
 from functools import wraps
+from pathlib import Path
 from typing import Any, TypeVar
 from warnings import warn
 
 import anyio.to_thread
 import fastapi.testclient
 import httpx
+import pytest
 import starlette.testclient
 from anyio._backends import _asyncio
 
 T = TypeVar("T")
 
+_INITIAL_ENV_FILE = os.environ.get("ENV_FILE")
+if _INITIAL_ENV_FILE:
+    _PYTEST_ENV_FILE = _INITIAL_ENV_FILE
+else:
+    _EMPTY_ENV_FILE = Path(tempfile.gettempdir()) / "stocker-pytest-empty.env"
+    _EMPTY_ENV_FILE.touch(exist_ok=True)
+    _PYTEST_ENV_FILE = str(_EMPTY_ENV_FILE)
+    os.environ["ENV_FILE"] = _PYTEST_ENV_FILE
+
+_CONFIG_ENV_PREFIXES = (
+    "AGENT_LITELLM_",
+    "ANSPIRE_",
+    "ANTHROPIC_",
+    "COHERE_",
+    "DEEPSEEK_",
+    "GEMINI_",
+    "KIMI_",
+    "LITELLM_",
+    "LLM_",
+    "MINIMAX_",
+    "MOONSHOT_",
+    "OLLAMA_",
+    "OPENAI_",
+    "XAI_",
+)
+_CONFIG_ENV_KEYS = {
+    "AGENT_LITELLM_MODEL",
+    "LITELLM_CONFIG",
+    "LITELLM_FALLBACK_MODELS",
+    "LITELLM_MODEL",
+    "LLM_TEMPERATURE",
+    "VISION_MODEL",
+}
+
+
+def _is_config_env_key(key: str) -> bool:
+    return key in _CONFIG_ENV_KEYS or key.startswith(_CONFIG_ENV_PREFIXES)
+
+
+_BASELINE_CONFIG_ENV = {
+    key: value
+    for key, value in os.environ.items()
+    if _is_config_env_key(key)
+}
+
 _original_call_soon_threadsafe = asyncio.BaseEventLoop.call_soon_threadsafe
+
+
+@pytest.fixture(autouse=True)
+def _restore_pytest_env_file():
+    """Keep tests isolated from a developer's real root `.env` file."""
+    yield
+
+    changed = False
+    if os.environ.get("ENV_FILE") != _PYTEST_ENV_FILE:
+        os.environ["ENV_FILE"] = _PYTEST_ENV_FILE
+        changed = True
+
+    for key in list(os.environ):
+        if _is_config_env_key(key) and key not in _BASELINE_CONFIG_ENV:
+            os.environ.pop(key, None)
+            changed = True
+
+    for key, value in _BASELINE_CONFIG_ENV.items():
+        if os.environ.get(key) != value:
+            os.environ[key] = value
+            changed = True
+
+    if not changed:
+        return
+
+    try:
+        from src.config import Config
+    except Exception:
+        return
+    Config.reset_instance()
 
 
 def _call_soon_threadsafe_with_extra_wakeup(
