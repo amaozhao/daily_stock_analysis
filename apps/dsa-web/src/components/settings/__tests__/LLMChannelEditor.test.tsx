@@ -177,7 +177,7 @@ describe('LLMChannelEditor', () => {
 
     await screen.findByRole('button', { name: buttonName });
     expect(screen.getAllByRole('combobox').some((select) => (
-      select instanceof HTMLSelectElement && select.value === protocol
+      select instanceof HTMLSelectElement && select.value === 'openai'
     ))).toBe(true);
     expect(screen.getByLabelText('Base URL')).toHaveValue(baseUrl);
     expect(screen.getByLabelText('模型（逗号分隔）')).toHaveValue(models);
@@ -311,8 +311,8 @@ describe('LLMChannelEditor', () => {
       'minimax2',
     ]);
     expect(screen.getAllByLabelText('Base URL').map((input) => (input as HTMLInputElement).value)).toEqual([
-      'https://api.minimaxi.com/anthropic',
-      'https://api.minimaxi.com/anthropic',
+      'https://api.minimax.io/v1',
+      'https://api.minimax.io/v1',
     ]);
     expect(screen.getAllByLabelText('模型（逗号分隔）').map((input) => (input as HTMLInputElement).value)).toEqual([
       'MiniMax-M3,MiniMax-M2.7,MiniMax-M2.7-highspeed',

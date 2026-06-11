@@ -77,14 +77,18 @@ describe('llmProviderTemplates', () => {
     expect(LLM_PROVIDER_TEMPLATE_BY_ID.ark).toBeUndefined();
   });
 
-  it('uses the MiniMax Token Plan Anthropic-compatible preset', () => {
+  it('uses the MiniMax OpenAI-compatible preset', () => {
     expect(LLM_PROVIDER_TEMPLATE_BY_ID.minimax).toMatchObject({
       label: 'MiniMax 官方',
-      protocol: 'anthropic',
-      baseUrl: 'https://api.minimaxi.com/anthropic',
-      placeholderModels: 'MiniMax-M2.7,MiniMax-M2.7-highspeed',
+      protocol: 'openai',
+      baseUrl: 'https://api.minimax.io/v1',
+      placeholderModels: 'MiniMax-M3,MiniMax-M2.7,MiniMax-M2.7-highspeed',
     });
-    expect(LLM_PROVIDER_TEMPLATE_BY_ID.minimax.configHint).toContain('Token Plan Key');
+    expect(LLM_PROVIDER_TEMPLATE_BY_ID.minimax.officialSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'MiniMax Token Plan Quickstart' }),
+      ]),
+    );
   });
 
   it('keeps focused config hints on providers with common setup pitfalls', () => {

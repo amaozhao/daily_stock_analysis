@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
 
 class MemoryStorageMock implements Storage {
   private readonly values = new Map<string, string>();
