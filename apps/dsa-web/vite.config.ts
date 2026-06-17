@@ -117,6 +117,9 @@ export default defineConfig({
     outDir: path.resolve(__dirname, '../../static'),
     emptyOutDir: true,
     rolldownOptions: {
+      checks: {
+        pluginTimings: false,
+      },
       output: {
         manualChunks: getVendorChunkName,
       },

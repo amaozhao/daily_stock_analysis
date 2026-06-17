@@ -26,6 +26,7 @@ from src.formatters import (
     chunk_content_by_max_bytes,
     format_feishu_markdown,
 )
+from src.utils.lark_oapi_warnings import suppress_lark_oapi_import_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +39,14 @@ _lark: Any = None  # type: ignore[assignment]
 FEISHU_DOMAIN = "feishu"
 LARK_DOMAIN = "lark"
 try:
-    import lark_oapi as _lark
-    from lark_oapi.api.im.v1 import (
-        CreateMessageRequest,
-        CreateMessageRequestBody,
-    )
-    from lark_oapi.core.const import FEISHU_DOMAIN as _SDK_FEISHU_DOMAIN
-    from lark_oapi.core.const import LARK_DOMAIN as _SDK_LARK_DOMAIN
+    with suppress_lark_oapi_import_warnings():
+        import lark_oapi as _lark
+        from lark_oapi.api.im.v1 import (
+            CreateMessageRequest,
+            CreateMessageRequestBody,
+        )
+        from lark_oapi.core.const import FEISHU_DOMAIN as _SDK_FEISHU_DOMAIN
+        from lark_oapi.core.const import LARK_DOMAIN as _SDK_LARK_DOMAIN
 
     FEISHU_DOMAIN = _SDK_FEISHU_DOMAIN
     LARK_DOMAIN = _SDK_LARK_DOMAIN

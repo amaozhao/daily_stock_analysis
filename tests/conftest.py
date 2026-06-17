@@ -6,9 +6,11 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import os
+import sys
 import tempfile
 import time
 import threading
+import types
 from collections.abc import Awaitable, Callable
 from contextvars import copy_context
 from functools import wraps
@@ -17,10 +19,10 @@ from typing import Any, TypeVar
 from warnings import warn
 
 import anyio.to_thread
-import fastapi.testclient
+import fastapi
 import httpx
 import pytest
-import starlette.testclient
+import starlette
 from anyio._backends import _asyncio
 
 T = TypeVar("T")
@@ -223,6 +225,8 @@ _asyncio.AsyncIOBackend.run_async_from_thread = classmethod(_run_async_from_thre
 class _ThreadlessTestClient:
     """Small TestClient replacement that avoids AnyIO's cross-thread portal."""
 
+    __test__ = False
+
     def __init__(
         self,
         app,
@@ -326,5 +330,14 @@ class _ThreadlessTestClient:
         return self.request("HEAD", url, **kwargs)
 
 
-fastapi.testclient.TestClient = _ThreadlessTestClient
-starlette.testclient.TestClient = _ThreadlessTestClient
+_fastapi_testclient_module = types.ModuleType("fastapi.testclient")
+_fastapi_testclient_module.TestClient = _ThreadlessTestClient
+_fastapi_testclient_module.__all__ = ["TestClient"]
+sys.modules["fastapi.testclient"] = _fastapi_testclient_module
+fastapi.testclient = _fastapi_testclient_module
+
+_starlette_testclient_module = types.ModuleType("starlette.testclient")
+_starlette_testclient_module.TestClient = _ThreadlessTestClient
+_starlette_testclient_module.__all__ = ["TestClient"]
+sys.modules["starlette.testclient"] = _starlette_testclient_module
+starlette.testclient = _starlette_testclient_module
