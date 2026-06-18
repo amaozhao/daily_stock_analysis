@@ -235,6 +235,8 @@ daily_stock_analysis/
 | `LITELLM_FALLBACK_MODELS` | 备选模型，逗号分隔 | - | 否 |
 | `LLM_CHANNELS` | 渠道名称列表（逗号分隔），配合 `LLM_{NAME}_*` 使用，详见 [LLM 配置指南](LLM_CONFIG_GUIDE.md) | - | 否 |
 | `LITELLM_CONFIG` | 高级模型路由 YAML 配置文件路径（高级） | - | 否 |
+| `LLM_USAGE_HMAC_SECRET` | LLM 用量遥测 message HMAC 密钥；留空时自动使用数据目录中的本地密钥文件 | - | 否 |
+| `LLM_USAGE_HMAC_KEY_VERSION` | LLM 用量遥测 HMAC 密钥版本标签，轮换密钥时同步更新 | `local-v1` | 否 |
 | `ANSPIRE_API_KEYS` | [Anspire](https://open.anspire.cn/?share_code=QFBC0FYC) API Key，一 Key 同时启用大模型网关和搜索 | - | 可选 |
 | `AIHUBMIX_KEY` | [AIHubmix](https://aihubmix.com/?aff=CfMq) API Key，一 Key 切换使用全系模型，无需额外配置 Base URL | - | 可选 |
 | `GEMINI_API_KEY` | Google Gemini API Key | - | 可选 |
@@ -1313,9 +1315,15 @@ python main.py --debug
 
 #1390 P0 不会把后续信号资产字段平铺到现有 summary、历史列表、StockBar 或回测响应。#1390 P1 开始通过独立 `DecisionSignal` 资源承接 `horizon`、`plan_quality`、`status` 等更细粒度计划字段，仍不改变既有报告主契约、不回填历史、不新增配置项。
 
-### 决策信号资产（#1390 P1）
+### 决策信号资产（#1390 P1/P2/P3/P4）
 
-`DecisionSignal` 是独立后端资源，用于把 AI 建议沉淀为可查询、可去重、可更新状态的信号资产。它不替换 `operation_advice`、不扩展 `decision_type=buy|hold|sell`，也不会自动从现有报告提取；P2 之前只有显式调用 API 或 service 的路径会写入信号。
+`DecisionSignal` 是独立后端资源，用于把 AI 建议沉淀为可查询、可去重、可更新状态的信号资产。它不替换 `operation_advice`、不扩展 `decision_type=buy|hold|sell`。#1390 P2 开始，普通个股分析和 Agent 个股分析在分析历史保存成功后，会从最终 `AnalysisResult` best-effort 提取一条 `source_type=analysis` 的信号；显式 API 或 service 调用仍然保留。
+
+自动提取只消费已生成报告中的结构化字段，不重新解析 Markdown，也不回填旧历史、不新增配置项、不改变报告主契约。提取失败、建议动作未知或歧义、非个股报告、无法识别市场时会跳过写入，不影响分析报告保存。`source_report_id` 使用刚保存的 `AnalysisHistory.id`；`trace_id` 优先使用运行诊断 trace，缺失时降级到 pipeline trace 或 `query_id`；`stock_name` 来自 `AnalysisResult.name`；`trigger_source` 来自运行入口，缺失时为 `system`。
+
+P2 自动提取的市场阶段优先读取保存快照中的 `market_phase_summary.phase`，其次读取 `AnalysisResult.market_phase_summary.phase`；数据质量优先读取保存快照中的 `analysis_context_pack_overview.data_quality`，其次读取 `AnalysisResult.analysis_context_pack_overview.data_quality`。价格计划复用历史保存的狙击点解析规则，从 `dashboard.battle_plan.sniper_points.ideal_buy/secondary_buy/stop_loss/take_profit` 映射到 `entry_low/entry_high/stop_loss/target_price`；只有 `ideal_buy` 时写入 `entry_low`，只有 `secondary_buy` 时写入 `entry_high`，两者同时存在时按有效价格排序为 `entry_low <= entry_high`。缺失止损或目标价只会降低 service 自动计算的 `plan_quality`，不会编造字段。`watch_conditions` 优先读取 `dashboard.phase_decision.watch_conditions`，没有时才读取 `dashboard.battle_plan.action_checklist`；`catalyst_summary` 仅在 `dashboard.intelligence.positive_catalysts` 存在且为列表时写入。`confidence` 由报告置信等级做保守映射：`高/high=0.8`、`中/medium/mid=0.6`、`低/low=0.4`，原始置信等级保留在 `metadata`。
+
+P3 开始，生命周期由 `DecisionSignalService` 统一补齐：显式传入的 `horizon` / `expires_at` 永远优先；未传 `horizon` 时，`alert` 或 `premarket/intraday/lunch_break/closing_auction` 默认 `intraday`，`postmarket/non_trading/unknown` 或无阶段上下文时默认 `3d`；未传 `expires_at` 时，`intraday` 优先读取 `metadata.market_phase_summary.minutes_to_close/minutes_to_open`，无上下文时使用确定性 TTL fallback（A 股 4h、港股 5.5h、美股 6.5h、未知 4h），`1d/3d/5d/10d` 按自然日，`swing/long` 不自动过期。fallback TTL 只是缺少交易日历上下文时的降级策略，不等价于真实交易所收盘时间。自动提取只把 `market_phase_summary.phase/session_date/minutes_to_open/minutes_to_close` 作为低敏 hint 写入 `metadata.market_phase_summary`，最终 `horizon/expires_at` 仍由 service 计算。
 
 核心字段包括 `stock_code`、`stock_name`、`market`、`source_type`、`source_agent`、`source_report_id`、`trace_id`、`market_phase`、`trigger_source`、`action`、`action_label`、`confidence`、`score`、`horizon`、`entry_low`、`entry_high`、`stop_loss`、`target_price`、`invalidation`、`watch_conditions`、`reason`、`risk_summary`、`catalyst_summary`、`evidence`、`data_quality_summary`、`plan_quality`、`status`、`expires_at`、`created_at`、`updated_at` 和 `metadata`。`action` 复用八态建议动作；`market_phase` 复用市场阶段枚举；`source_type` 支持 `analysis|agent|alert|market_review|manual`；`status` 支持 `active|expired|invalidated|closed|archived`；`horizon` 支持 `intraday|1d|3d|5d|10d|swing|long`。
 
@@ -1323,17 +1331,23 @@ python main.py --debug
 
 新增 API：
 
-- `POST /api/v1/decision-signals`：创建或按同源键去重，返回 `{ item, created }`，HTTP 200。去重键为 `(source_report_id, source_type, market, stock_code, action, horizon, market_phase)`；没有 report 但有 `trace_id` 时使用 `(trace_id, source_type, market, stock_code, action, horizon, market_phase)`；两者皆无则不去重。`source_type` 是来源命名空间，manual/pre-report 弱引用不会与真实 analysis 绑定信号互相去重；`horizon` 和 `market_phase` 同为 `NULL` 时才互相去重，不同来源类型、不同市场、不同期限或不同市场阶段允许保存多条信号。若命中同源 expired 记录，且新请求为 active 并携带未来 `expires_at`，会原地刷新该记录并返回 `created=false`。P1 不提供并发唯一性保证。
+- `POST /api/v1/decision-signals`：创建或按同源键去重，返回 `{ item, created }`，HTTP 200。精确去重键为 `(source_report_id, source_type, market, stock_code, action, horizon, market_phase)`；没有 report 但有 `trace_id` 时使用 `(trace_id, source_type, market, stock_code, action, horizon, market_phase)`；两者皆无则不去重。精确匹配失败后，会按同源 + `source_type/market/stock_code/action` 做窄 relaxed fallback，只填补旧记录为空的 `horizon/market_phase`，且 `horizon` 只有在新值由 service 默认生成时才可填补；显式不同期限或已有不同阶段仍保留多条。若命中同源 expired 记录，且新请求为 active 并携带未来 `expires_at`，会原地刷新该记录并返回 `created=false`，这次续期按新的 active 激活事件处理。active 新建或 expired 续期后的 bullish 信号（`buy/add`）会把更早的 active defensive 信号（`reduce/sell/avoid`）标记为 `invalidated`，反向同理；active duplicate retry 也会重跑该失效修复，以恢复上次创建成功但失效写入失败的 partial create；普通旧 duplicate/replay 不作为新的激活事件。`hold/watch/alert` 不触发自动失效。API 响应 schema 不变，刷新或重复命中都对外返回 `created=false`；本功能不提供并发唯一性保证。
 - `GET /api/v1/decision-signals`：分页查询，支持 `market`、`stock_code`、`action`、`market_phase`、`source_type`、`source_report_id`、`trace_id`、`trigger_source`、`status`、时间范围、`holding_only`、`account_id`。
 - `GET /api/v1/decision-signals/{signal_id}`：查询单条，不存在返回 404。
-- `PATCH /api/v1/decision-signals/{signal_id}/status`：更新合法状态和可选 `metadata`；传入 `metadata` 时按整包替换保存，不实现复杂状态机。
+- `PATCH /api/v1/decision-signals/{signal_id}/status`：更新合法状态和可选 `metadata`；传入 `metadata` 时按整包替换保存。`expired/invalidated/closed/archived` 等 terminal 状态不能直接 PATCH 回 `active`，expired 续期仍只能重新 `POST` active + 未来 `expires_at`。
 - `GET /api/v1/decision-signals/latest/{stock_code}`：按股票查询最新 active 信号，默认 `limit=1`。
 
-读取入口会懒过期：列表、详情和 latest 查询前会把已到 `expires_at` 的 active 信号标为 expired；创建时已过期的 active 信号会直接保存为 expired；同源 expired 信号只能通过重新 `POST` active + 未来 `expires_at` 的方式延展，`PATCH /status` 不接受 `expires_at`。`closed|invalidated|archived` 不会被 create 路径复活。时间字段按 UTC 归一化为无时区 `datetime` 保存和比较；带时区输入会先转为 UTC 后去掉 `tzinfo`，无时区输入按 UTC 处理，API 响应继续返回不带时区后缀的 ISO 字符串。股票代码入库与查询按 `market` 确定性归一化：A 股 `600519`、`SH600519`、`600519.SH` 等常见变体按同一代码匹配；港股 `00700`、`HK00700`、`00700.HK` 按 `HK00700` 匹配；美股 ticker 统一大写。`holding_only=true` 只读取 active 账户下 `portfolio_positions` 中 `quantity > 0` 的缓存持仓，并按持仓 `(market, stock_code)` 匹配信号，可选 active `account_id`；该查询不会调用组合 snapshot replay，无缓存时返回空结果，需先通过 portfolio snapshot API 刷新缓存。
+读取入口会懒过期：列表、详情和 latest 查询前会把已到 `expires_at` 的 active 信号标为 expired；创建时已过期的 active 信号会直接保存为 expired；同源 expired 信号只能通过重新 `POST` active + 未来 `expires_at` 的方式延展，`PATCH /status` 不接受 `expires_at`。`expired|invalidated|closed|archived` 不会被 PATCH 直接复活，`closed|invalidated|archived` 也不会被 create 路径复活。相反信号自动失效会合并写入旧信号 `metadata`：`invalidated_by_signal_id`、`invalidated_reason`、`invalidated_at`、`previous_status`；旧 metadata JSON 损坏时会替换为失效 metadata 并写入 `metadata_replaced_due_to_invalid_json=true`，不阻断新信号创建。时间字段按 UTC 归一化为无时区 `datetime` 保存和比较；带时区输入会先转为 UTC 后去掉 `tzinfo`，无时区输入按 UTC 处理，API 响应继续返回不带时区后缀的 ISO 字符串。股票代码入库与查询按 `market` 确定性归一化：A 股 `600519`、`SH600519`、`600519.SH` 等常见变体按同一代码匹配；港股 `00700`、`HK00700`、`00700.HK` 按 `HK00700` 匹配；美股 ticker 统一大写。`holding_only=true` 只读取 active 账户下 `portfolio_positions` 中 `quantity > 0` 的缓存持仓，并按持仓 `(market, stock_code)` 匹配信号，可选 active `account_id`；该查询不会调用组合 snapshot replay，无缓存时返回空结果，需先通过 portfolio snapshot API 刷新缓存。
 
 `source_report_id` 可为空且不强制校验历史记录存在；删除历史记录时只显式清理 `source_type=analysis` 且 `source_report_id` 命中实际删除 ID 的历史绑定信号，`manual/agent/alert/market_review` 等弱引用信号不会仅因 ID 碰撞被删除；列表接口支持按 `source_report_id` 和 `trace_id` 做 typed filter。`task_id`、`alert_trigger_id` 等后续关联字段先放入 `metadata`，P1 不新增独立列，也不提供 typed filter，后续联动阶段再提升为独立契约。JSON 字段、长文本字段和展示型短文本字段（`stock_name/source_agent/trigger_source/action_label`）会在写入前执行信号专用脱敏，覆盖敏感 key、Bearer、Authorization/Cookie header 或赋值、token-like 字符串、其他敏感赋值、webhook URL、URL userinfo 以及带敏感 query/fragment 参数的 URL；普通证据 URL 会保留以保证来源可追溯，且长文本不会套用诊断文本的 300 字符截断。`trace_id` 是同源去重身份字段，若包含会被脱敏的敏感 credential，API 会拒绝请求而不是保存有损 redaction 后的值。
 
 这些接口继承现有 `/api/v1/*` 管理员鉴权：`ADMIN_AUTH_ENABLED=true` 时必须携带有效管理员会话 Cookie；本功能不新增独立认证方式。
+
+#1390 P4 在 Web 端接入已有 `DecisionSignal` API，不新增后端契约、数据库表或配置项。侧边栏新增“AI 建议”入口 `/decision-signals`，默认展示 `status=active` 的信号，并支持按市场、股票代码、动作、市场阶段、来源和状态筛选；页面还提供按股票代码查询最新 active 信号的入口。信号详情展示动作、置信度/评分、horizon、plan_quality、market_phase、价格计划、风险、观察条件、来源报告和数据质量；Web 只允许把信号标记为 `closed`、`invalidated` 或 `archived`，不提供 terminal 状态恢复为 active，也不提供 feedback。
+
+持仓页会把 AI 建议作为非阻断增强异步加载：组合快照和风险模块先按原逻辑渲染，随后按当前快照中的唯一持仓调用 `GET /api/v1/decision-signals/latest/{stock_code}?market=<market>&limit=1` 查询 latest active 信号；不再通过 `holding_only=true` 通用列表分页扫描，也不存在固定页数截断。单个持仓 latest 查询失败时，页面保留其他已加载信号并显示可见降级提示；无匹配信号时持仓行显示空占位。匹配逻辑复用 Web 端股票代码等价规则，覆盖 A 股 `600519/SH600519/600519.SH`、港股 `00700/HK00700/00700.HK` 和美股大小写 ticker。
+
+普通个股历史报告详情会在策略区后展示该报告提取出的 `source_type=analysis` 信号，查询条件为 `source_report_id=<recordId>`；无 `recordId`、大盘复盘或其他非普通个股报告不会发起该查询。空结果显示“本报告暂无决策信号”，加载失败只影响该卡片，不影响报告主体、资讯、运行诊断或透明度区展示。
 
 ## 回测功能
 
@@ -1446,6 +1460,7 @@ FastAPI 提供 RESTful API 服务，支持配置管理和触发分析。
 | `/api/v1/decision-signals/{signal_id}/status` | PATCH | 更新决策信号状态和可选 metadata |
 | `/api/v1/decision-signals/latest/{stock_code}` | GET | 查询指定股票最新 active 决策信号 |
 | `/api/v1/usage/summary?period=today|month|all` | GET | 按调用类型与模型维度汇总 LLM 调用次数和 Token 用量 |
+| `/api/v1/usage/dashboard?period=today|month|all&limit=50` | GET | 返回 Token 用量看板数据：总量、Prompt/Completion 拆分、模型用量、调用类型分布和最近调用明细；Web 侧入口为左侧导航“用量” |
 | `/api/v1/backtest/run` | POST | 触发回测 |
 | `/api/v1/backtest/results` | GET | 查询回测结果（分页） |
 | `/api/v1/backtest/performance` | GET | 获取整体回测表现 |
@@ -1472,6 +1487,7 @@ FastAPI 提供 RESTful API 服务，支持配置管理和触发分析。
 > 说明：该端点若返回 `task_id`，WebUI 会轮询 `GET /api/v1/analysis/status/{task_id}` 展示状态。状态为 `completed` 时给出完成提示（报告已生成并按配置推送），状态为 `failed` 时在前端错误区域显示 `error` 原因。
 > 说明：`GET /api/v1/history/{record_id}/diagnostics` 支持历史记录主键 ID 或 `query_id`，返回 `normal/degraded/failed/unknown` 摘要、关键链路组件和可复制的脱敏 `copy_text`；旧报告缺少诊断快照时返回 `unknown`，不影响报告读取。
 > 说明：`GET /api/v1/history` 的列表摘要可按 `stock_code` 分页查询同一股票历史，并返回趋势判断、分析摘要、模型名与分析时价格/涨跌幅等可选字段；旧记录缺少快照字段时返回空值。Web 报告页的“历史趋势”抽屉复用该接口加载同股历史。
+> 说明：`GET /api/v1/usage/dashboard` 复用 `llm_usage` 审计表，不新增配置项或数据库迁移。接口仅返回已落库的调用次数、Prompt/Completion/Total Token 聚合、模型维度用量和最近调用记录，不推导模型上下文窗口或 provider 元数据。
 > 说明（Issue #1520）：列表中的模型名展示字段仅来源于历史快照中的 `model_used`，仅用于历史回溯展示，不影响运行时模型模型路由（`litellm_model`、`llm_model_list`）、Provider、Base URL 与配置迁移/清理语义。回退方式为回退本次提交，现网历史查询/抽屉/接口链路兼容性保持不变。
 > 说明：历史详情、同步分析响应和 completed 任务状态会在 `report.details.analysis_context_pack_overview` 返回低敏输入数据块 overview；其中同步分析响应依赖本次已持久化的 `analysis_history.context_snapshot`，`SAVE_CONTEXT_SNAPSHOT=false` 时新记录不保证返回 overview。`details.context_snapshot` 会剥离该顶层字段，不返回完整 `AnalysisContextPack` 或 Prompt summary。
 > 说明：`POST /api/v1/agent/chat` 与 `POST /api/v1/agent/chat/stream` 会把前端传入的 `context.stock_code` 作为问股当前标的基线，但服务端会先重新判定 stock scope。前端从历史报告进入问股后会持续发送 active stock context；切回或重载已有会话时，会根据已加载的历史用户消息恢复基础 `{stock_code, stock_name: null}`。服务端会在每轮消息中重新判定 `maintain` / `switch` / `compare`：未明确切换时，带 `stock_code` 的股票工具调用只能访问当前标的；显式切换会清理旧标的历史摘要和预取数据；含比较/对比/vs/差异/相比等明确比较意图或多个非当前明确股票代码的问题允许本轮明确出现的多个代码，但不改写当前标的。若模型误把 TTM、PE、MACD、KDJ 等金融缩写、移动均线语境下的 `MA` 指标词，或 SH/SZ/BJ/HK/SS 等交易所片段当成股票代码调用工具，后端会返回不可重试的 `stock_scope_violation` 工具结果，而不会执行对应股票工具。工具名只解析注册表中的精确名称；任何 provider namespace 或 suffix 都不会路由到已有工具。
@@ -1510,6 +1526,9 @@ curl http://127.0.0.1:8000/api/v1/analysis/status/<task_id>
 
 # 查询今日 LLM 用量
 curl "http://127.0.0.1:8000/api/v1/usage/summary?period=today"
+
+# 查询今日 LLM 用量看板
+curl "http://127.0.0.1:8000/api/v1/usage/dashboard?period=today&limit=50"
 
 # 触发回测（全部股票）
 curl -X POST http://127.0.0.1:8000/api/v1/backtest/run \

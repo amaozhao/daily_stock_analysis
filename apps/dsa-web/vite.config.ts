@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
+import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 const packageJson = JSON.parse(
@@ -99,6 +100,7 @@ export default defineConfig({
     __APP_BUILD_TIME__: JSON.stringify(buildTime),
   },
   plugins: [
+    tailwindcss(),
     react(),
     babel({ presets: [reactCompilerPreset()] }),
   ],
