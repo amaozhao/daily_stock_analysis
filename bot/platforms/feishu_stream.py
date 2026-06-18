@@ -30,19 +30,22 @@ from datetime import datetime
 from typing import Optional, Callable
 import time
 
+from src.utils.lark_oapi_warnings import suppress_lark_oapi_import_warnings
+
 logger = logging.getLogger(__name__)
 
 # 尝试导入飞书 SDK
 try:
-    import lark_oapi as lark
-    from lark_oapi import ws
-    from lark_oapi.api.im.v1 import (
-        P2ImMessageReceiveV1,
-        ReplyMessageRequest,
-        ReplyMessageRequestBody,
-        CreateMessageRequest,
-        CreateMessageRequestBody,
-    )
+    with suppress_lark_oapi_import_warnings():
+        import lark_oapi as lark
+        from lark_oapi import ws
+        from lark_oapi.api.im.v1 import (
+            P2ImMessageReceiveV1,
+            ReplyMessageRequest,
+            ReplyMessageRequestBody,
+            CreateMessageRequest,
+            CreateMessageRequestBody,
+        )
 
     FEISHU_SDK_AVAILABLE = True
 except ImportError:

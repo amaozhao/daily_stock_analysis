@@ -2,6 +2,8 @@
 """Regression tests for the local TestClient compatibility shim."""
 
 import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 
 import anyio.to_thread
@@ -28,16 +30,15 @@ def test_threadless_test_client_preserves_cookies_between_requests() -> None:
 
 
 def test_threadless_test_client_lifespan_runs_once_per_context() -> None:
-    app = FastAPI()
     lifecycle_calls = {"startup": 0, "shutdown": 0, "requests": 0}
 
-    @app.on_event("startup")
-    async def _on_startup() -> None:
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         lifecycle_calls["startup"] += 1
-
-    @app.on_event("shutdown")
-    async def _on_shutdown() -> None:
+        yield
         lifecycle_calls["shutdown"] += 1
+
+    app = FastAPI(lifespan=lifespan)
 
     @app.get("/ping")
     def ping() -> dict[str, str]:
@@ -54,16 +55,15 @@ def test_threadless_test_client_lifespan_runs_once_per_context() -> None:
 
 
 def test_threadless_test_client_does_not_run_lifespan_without_context() -> None:
-    app = FastAPI()
     lifecycle_calls = {"startup": 0, "shutdown": 0, "requests": 0}
 
-    @app.on_event("startup")
-    async def _on_startup() -> None:
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         lifecycle_calls["startup"] += 1
-
-    @app.on_event("shutdown")
-    async def _on_shutdown() -> None:
+        yield
         lifecycle_calls["shutdown"] += 1
+
+    app = FastAPI(lifespan=lifespan)
 
     @app.get("/ping")
     def ping() -> dict[str, str]:
