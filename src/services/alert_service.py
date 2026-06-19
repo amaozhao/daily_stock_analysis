@@ -57,6 +57,7 @@ from src.services.market_light_alerts import (
     normalize_market_alert_parameters,
 )
 from src.services.market_light_service import normalize_market_region
+from src.services.decision_signal_summary import summarize_decision_signal
 from src.analysis_context_pack_overview import (
     ANALYSIS_CONTEXT_PACK_OVERVIEW_KEY,
     extract_analysis_context_pack_overview,
@@ -1248,6 +1249,7 @@ class AlertService:
             "market_phase_summary": visibility.get("market_phase_summary"),
             "analysis_context_pack_overview": visibility.get("analysis_context_pack_overview"),
             "analysis_visibility_source": visibility.get("analysis_visibility_source"),
+            "decision_signal_summary": visibility.get("decision_signal_summary"),
         }
 
     @staticmethod
@@ -1256,6 +1258,7 @@ class AlertService:
             "market_phase_summary": None,
             "analysis_context_pack_overview": None,
             "analysis_visibility_source": None,
+            "decision_signal_summary": None,
         }
         if not diagnostics:
             return result
@@ -1267,6 +1270,7 @@ class AlertService:
         if not isinstance(parsed, dict):
             result["analysis_visibility_source"] = "legacy_text"
             return result
+        result["decision_signal_summary"] = summarize_decision_signal(parsed.get("decision_signal_summary"))
         visibility = parsed.get("analysis_visibility")
         if not isinstance(visibility, dict):
             return result
