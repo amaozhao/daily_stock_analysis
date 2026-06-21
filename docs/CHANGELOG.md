@@ -110,6 +110,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [文档] 本次 #1707 情报源基线仅新增 `NEWS_INTEL_*` 配置，不变更 LITELLM / ANSPIRE / Base URL / provider/model 清理与回退语义；回退策略为移除或禁用这三项情报源变量后恢复既有 LLM 配置行为。
 - [修复] #1707 默认禁用 `/api/v1/intelligence/sources/defaults` 新建源（未传 `enabled`），避免公开示例 NewsNow 实例被默认启用，同时统一 500 响应细节仅入日志、响应返回通用错误信息。
 
+- [修复] 修复日股/韩股历史列表重建市场阶段摘要时将 non_trading 等结果阶段误传为 analysis_phase 导致列表查询失败的问题。
+- [改进] Web 历史报告详情不再内嵌展示 AI 建议卡片，结构化决策信号集中在 AI 建议页查询，并保留按来源报告 ID 筛选或 URL 参数精确定位入口。
+
 ## [3.23.0] - 2026-06-20
 
 ### 发布亮点
