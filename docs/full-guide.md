@@ -151,7 +151,7 @@ daily_stock_analysis/
 
 | Secret 名称 | 说明 | 必填 |
 |------------|------|:----:|
-| `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
+| `STOCK_LIST` | 自选股代码，如 `600519,300750,002594,7203.T,005930.KS` | ✅ |
 | `ANSPIRE_API_KEYS` | [Anspire AI Search](https://aisearch.anspire.cn/) 针对中文内容特别优化；同一 Key 可用于搜索与 Anspire 大模型网关的兜底示例（是否可用以控制台与账号权限为准） | 推荐 |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/baidu-search-api?utm_source=github_daily_stock_analysis) 搜索引擎结果补强，适合实时金融新闻 | 推荐 |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 可选 |
@@ -391,6 +391,7 @@ daily_stock_analysis/
 > - A 股：按 `valuation/growth/earnings/institution/capital_flow/dragon_tiger/boards` 聚合能力返回；
 > - ETF：返回可得项，缺失能力标记为 `not_supported`，整体不影响原流程；
 > - 美股/港股：通过 yfinance 适配器返回 `valuation/growth/earnings/belong_boards`（来源 `info.sector`/`industry`），`institution/capital_flow/dragon_tiger/boards` 暂无对应数据源仍标记 `not_supported`；yfinance 不可用或字段缺失时整体降级回 `not_supported`，仍走 fail-open；
+> - 日股/韩股：当前仅走 Yfinance 基础路径获取日线与实时行情；`institution`、`capital_flow`、`dragon_tiger`、`boards` 等依赖 A 股专属源/离岸完整版的能力会降级为 `not_supported`（详见 [市场支持与边界](market-support.md)）；
 > - 任何异常走 fail-open，仅记录错误，不影响技术面/新闻/筹码主链路。
 > - 配置 `TICKFLOW_API_KEY` 后，仅 A 股大盘复盘会额外优先尝试 TickFlow 的主要指数行情；若当前套餐支持标的池查询，市场涨跌统计也会优先尝试 TickFlow。个股链路和实时行情优先级不变。
 > - TickFlow 能力按套餐权限分层：有限权限套餐仍可使用主指数查询；支持 `CN_Equity_A` 标的池查询的套餐才会启用 TickFlow 市场统计。
@@ -1355,6 +1356,8 @@ P5 在 Web `/decision-signals` 页面筛选区下方展示当前 outcome engine 
 
 #1390 P6 将 `DecisionSignal` 复用到告警、通知和组合风险，不新增表、迁移或配置。真实股票级告警触发会优先关联同标的 latest active 信号，并把低敏 `decision_signal_summary` 写入 `alert_triggers.diagnostics`；没有 active 信号时，worker 只创建最小 `source_type=alert`、`action=alert` 信号，`trace_id=alert-rule-<hash>` 仅用于同源重试的 best-effort 幂等去重，不覆盖 active 信号本体，且不写 `market_phase` 避免跨阶段重复。告警通知和分析通知只引用摘要中的 `action/horizon/reason/watch_conditions/risk_summary/source_report_id` 等公开字段，通知失败不影响 trigger 或信号写入。`GET /api/v1/portfolio/risk` 追加 `decision_signal_risk` 聚合块，只统计当前持仓中的 active `sell/reduce/alert` 信号，明确排除 `avoid/buy/add/hold/watch`；信号查询失败时风险接口 fail-open，Web 风险区显示降级状态。
 
+#1390 P7 的收口文档见 [DecisionSignal 决策信号专题](decision-signals.md)。P7 不新增 `DECISION_SIGNAL_*` 配置、数据库 migration、API 字段或运行时开关；当前回滚方式为 revert 对应代码。回滚后信号提取和写入停止，既有报告保存、告警触发、通知发送和组合风险主流程不依赖信号池继续运行；历史 signal、feedback 和 outcome 数据不会自动清理。
+
 普通个股历史报告详情会在策略区后展示该报告提取出的 `source_type=analysis` 信号，查询条件为 `source_report_id=<recordId>`；无 `recordId`、大盘复盘或其他非普通个股报告不会发起该查询。空结果显示“本报告暂无决策信号”，加载失败只影响该卡片，不影响报告主体、资讯、运行诊断或透明度区展示。
 
 ## 回测功能
@@ -1580,6 +1583,8 @@ python main.py --serve-only --host 0.0.0.0 --port 8888
 | 北交所 | 8/4/92 开头 6 位，支持 `BJ` 前缀或 `.BJ` 后缀 | `920748`、`BJ920493`、`920493.BJ` |
 | 港股 | hk + 5位数字 | `hk00700`、`hk09988` |
 | 美股 | 1-5 字母（可选 .X 后缀） | `AAPL`、`TSLA`、`BRK.B` |
+| 日股 | Yahoo 后缀 `.T` | `7203.T`、`6758.T` |
+| 韩股 | Yahoo 后缀 `.KS` / `.KQ` | `005930.KS`、`035720.KQ` |
 | 美股指数 | SPX/DJI/IXIC 等 | `SPX`、`DJI`、`NASDAQ`、`VIX` |
 
 ### 注意事项

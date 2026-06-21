@@ -143,7 +143,7 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 
 | Secret Name | Description | Required |
 |------------|------|:----:|
-| `STOCK_LIST` | Watchlist codes, e.g., `600519,300750,002594` | ✅ |
+| `STOCK_LIST` | Watchlist codes, e.g., `600519,300750,002594,7203.T,005930.KS` | ✅ |
 | `ANSPIRE_API_KEYS` | [Anspire AI Search](https://aisearch.anspire.cn/) optimized for Chinese content; the same key can also be used for Anspire LLM fallback scenarios (example model: `Doubao-Seed-2.0-lite`) | Recommended |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/baidu-search-api?utm_source=github_daily_stock_analysis) search-engine results for realtime financial news | Recommended |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) Search API (for news search) | Optional |
@@ -323,6 +323,7 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 > - **A-shares**: Returns aggregated capabilities by `valuation/growth/earnings/institution/capital_flow/dragon_tiger/boards`.
 > - **ETFs**: Returns available items, marks missing capabilities as `not_supported`, and does not affect the original flow overall.
 > - **US/HK stocks**: Returns `valuation/growth/earnings/belong_boards` (sourced from `info.sector`/`info.industry`) via the yfinance adapter; `institution/capital_flow/dragon_tiger/boards` stay `not_supported` because no offshore data feed exists today. Falls back to a full `not_supported` block if yfinance is unavailable or returns empty payloads. Still fail-open.
+> - **Japanese/Korean stocks**: Current MVP uses Yfinance daily/basic quote coverage only; `institution`, `capital_flow`, `dragon_tiger`, and `boards` are not fully supported and degrade to `not_supported` (see [market boundaries](market-support.md)).
 > - Any exception uses fail-open logic, only logs errors without affecting the main technical/news/chip pipeline.
 > - **Field contracts**:
 >   - `fundamental_context.belong_boards` = related board list for the stock; A-shares are sourced from AkShare board membership, US/HK from yfinance `info.sector`/`info.industry`, `[]` when unavailable;
@@ -1190,6 +1191,8 @@ The portfolio page loads AI signals as a non-blocking enhancement: portfolio sna
 
 #1390 P6 reuses `DecisionSignal` across alerts, notifications, and portfolio risk without adding tables, migrations, or configuration. Real stock-level alert triggers first link the latest active signal for the same symbol and write a low-sensitive `decision_signal_summary` into `alert_triggers.diagnostics`; when no active signal exists, the worker creates only a minimal `source_type=alert`, `action=alert` signal. Its `trace_id=alert-rule-<hash>` is for best-effort retry de-duplication, not active-signal overwrites, and the payload intentionally omits `market_phase` to avoid cross-phase duplicates. Alert and analysis notifications reference only public summary fields such as `action/horizon/reason/watch_conditions/risk_summary/source_report_id`, and notification failure does not block trigger or signal writes. `GET /api/v1/portfolio/risk` now includes a `decision_signal_risk` block that counts active `sell/reduce/alert` signals for current holdings, explicitly excluding `avoid/buy/add/hold/watch`; if signal lookup fails, the risk endpoint fails open and the Web risk card shows a degraded state.
 
+#1390 P7 is documented in [DecisionSignal Topic](decision-signals.md) (Chinese-only). P7 adds no `DECISION_SIGNAL_*` configuration, database migration, API field, or runtime switch. Rollback is to revert the related code. After rollback, signal extraction and writes stop, while report saving, alert triggering, notification sending, and the portfolio risk main flow continue through their existing paths. Historical signal, feedback, and outcome rows are not deleted automatically.
+
 Regular stock history reports show `source_type=analysis` signals extracted from that report after the strategy block, using `source_report_id=<recordId>` as the query. Reports without a `recordId`, market reviews, and other non-regular stock reports do not issue this query. Empty results show a report-level empty state, and loading failures affect only that card, not the report body, news, diagnostics, or transparency sections.
 
 ## Backtesting
@@ -1410,6 +1413,9 @@ python main.py --serve-only --host 0.0.0.0 --port 8888
 | A-shares | 6-digit number | `600519`, `000001`, `300750` |
 | BSE (Beijing) | 8/4/92 prefix, 6-digit; supports `BJ` prefix or `.BJ` suffix | `920748`, `BJ920493`, `920493.BJ` |
 | HK stocks | hk + 5-digit number | `hk00700`, `hk09988` |
+| US stocks | 1-5 letters, optional `.X` suffix | `AAPL`, `TSLA`, `BRK.B` |
+| Japanese stocks | Yahoo `.T` suffix | `7203.T`, `6758.T` |
+| Korean stocks | Yahoo `.KS` / `.KQ` suffix | `005930.KS`, `035720.KQ` |
 
 ### Notes
 
