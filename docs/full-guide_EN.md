@@ -353,6 +353,7 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 | `MARKET_REVIEW_COLOR_SCHEME` | Index change color style in market reviews: `green_up` = green gains/red losses (default), `red_up` = red gains/green losses | `green_up` |
 | `SCHEDULE_ENABLED` | Enable scheduled tasks | `false` |
 | `SCHEDULE_TIME` | Scheduled execution time | `18:00` |
+| `SCHEDULE_TIMES` | Multiple scheduled execution times, comma-separated; falls back to `SCHEDULE_TIME` when empty | empty |
 | `SCHEDULE_RUN_IMMEDIATELY` | Run once immediately when scheduler mode starts; when unset it keeps following the legacy `RUN_IMMEDIATELY` runtime override | `true` |
 | `RUN_IMMEDIATELY` | Run once immediately for non-scheduler startup; also acts as the legacy fallback when `SCHEDULE_RUN_IMMEDIATELY` is unset | `true` |
 | `RECOMMENDATION_ENABLED` | Enable full-market after-close stock recommendations; screens the full A-share universe instead of `STOCK_LIST` | `false` |
@@ -621,7 +622,9 @@ crontab -e
 
 > Note: Scheduled mode reloads the saved `STOCK_LIST` before each run. If you also pass `--stocks`, it will not pin future scheduled executions to the startup snapshot; use a normal one-off run when you want to analyze a temporary stock list.
 >
-> When the built-in scheduler is started via `python main.py --schedule`, `python main.py --serve --schedule`, or an equivalent local mode, saving a new `SCHEDULE_TIME` from the WebUI will rebind the daily job on the next scheduler poll without restarting the process. The previous trigger time is removed instead of being kept alongside the new one.
+> When the built-in scheduler is started via `python main.py --schedule` or an equivalent CLI-only mode, saving a new `SCHEDULE_TIME` / `SCHEDULE_TIMES` from the WebUI will rebind the daily jobs on the next scheduler poll without restarting the process. The previous trigger times are removed instead of being kept alongside the new ones. `python main.py --serve --schedule` is owned by the Web/API runtime scheduler, so long-running WebUI/API/Desktop processes start, stop, or rebuild the runtime scheduler after saving `SCHEDULE_ENABLED`, `SCHEDULE_TIME`, or `SCHEDULE_TIMES`.
+>
+> The Web/API runtime scheduler run-now endpoint only accepts a request when no analysis is already running; if an analysis is in progress, it returns a busy response instead of reporting a queued run.
 
 ### Market Phase Baseline (Issue #1386 P0)
 
