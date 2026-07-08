@@ -754,7 +754,7 @@ const ChatPage: React.FC = () => {
       {steps.map((step, idx) => {
         let statusClass = 'chat-progress-item-muted';
         let iconClass = 'chat-progress-dot-muted';
-        let text = '';
+        let text: string;
         if (step.type === 'thinking') {
           text = step.message || `第 ${step.step} 步：思考`;
           statusClass = 'chat-progress-item-thinking';

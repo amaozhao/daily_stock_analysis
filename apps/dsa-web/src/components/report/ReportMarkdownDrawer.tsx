@@ -41,6 +41,7 @@ class ReportMarkdownDrawerErrorBoundary extends Component<
   }
 
   componentDidCatch(error: unknown) {
+    resetLazyReportMarkdownPanel();
     console.error('Report markdown drawer failed:', error);
   }
 
@@ -82,7 +83,12 @@ const ReportMarkdownChunkErrorState: React.FC<{
   </div>
 );
 
-const LazyReportMarkdownPanel = lazy(() => import('./ReportMarkdownPanel').then((m) => ({ default: m.ReportMarkdownPanel })));
+const loadReportMarkdownPanel = () => import('./ReportMarkdownPanel').then((m) => ({ default: m.ReportMarkdownPanel }));
+let LazyReportMarkdownPanel = lazy(loadReportMarkdownPanel);
+
+function resetLazyReportMarkdownPanel() {
+  LazyReportMarkdownPanel = lazy(loadReportMarkdownPanel);
+}
 
 export const ReportMarkdownDrawer: React.FC<ReportMarkdownDrawerProps> = ({
   recordId,

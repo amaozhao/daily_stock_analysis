@@ -220,7 +220,7 @@ def test_existing_js_asset_overrides_bad_system_mime_mapping(tmp_path: Path, mon
     (assets_dir / "index-abc.css").write_text("body{color:#fff}", encoding="utf-8")
     _write_index(static_dir, _vite_index("index-abc.js", "index-abc.css"))
 
-    client = TestClient(create_app(static_dir=static_dir))
+    client = ASGITestClient(create_app(static_dir=static_dir))
 
     js_response = client.get("/assets/index-abc.js")
 

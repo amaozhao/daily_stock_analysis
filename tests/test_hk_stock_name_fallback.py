@@ -7,6 +7,7 @@ Covers: data_provider/akshare_fetcher.py _get_hk_realtime_quote
 
 import sys
 import unittest
+import importlib.util
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -17,7 +18,7 @@ ensure_litellm_stub()
 try:
     import json_repair  # noqa: F401
 except ImportError:
-    if "json_repair" not in sys.modules:
+    if "json_repair" not in sys.modules and importlib.util.find_spec("json_repair") is None:
         sys.modules["json_repair"] = MagicMock()
 
 from data_provider.akshare_fetcher import AkshareFetcher

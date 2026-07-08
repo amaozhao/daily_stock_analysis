@@ -10,13 +10,14 @@ Covers:
 """
 import sys
 import unittest
+import importlib.util
 from unittest.mock import MagicMock
 
 # Provide lightweight stubs so importing data_provider.base does not require
 # full LLM runtime dependencies in minimal CI.
 if "litellm" not in sys.modules:
     sys.modules["litellm"] = MagicMock()
-if "json_repair" not in sys.modules:
+if "json_repair" not in sys.modules and importlib.util.find_spec("json_repair") is None:
     sys.modules["json_repair"] = MagicMock()
 
 # Core imports (should stay runnable even when optional data-source deps are absent)

@@ -17,7 +17,11 @@ try:
 except ValueError:
     json_repair_available = "json_repair" in sys.modules
 
-if not json_repair_available and "json_repair" not in sys.modules:
+if (
+    not json_repair_available
+    and "json_repair" not in sys.modules
+    and importlib.util.find_spec("json_repair") is None
+):
     sys.modules["json_repair"] = MagicMock()
 
 from data_provider.tushare_fetcher import TushareFetcher, _TushareHttpClient

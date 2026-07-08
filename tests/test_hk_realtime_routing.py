@@ -5,12 +5,13 @@ Regression tests for Hong Kong realtime quote routing.
 
 import sys
 import unittest
+import importlib.util
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 if "litellm" not in sys.modules:
     sys.modules["litellm"] = MagicMock()
-if "json_repair" not in sys.modules:
+if "json_repair" not in sys.modules and importlib.util.find_spec("json_repair") is None:
     sys.modules["json_repair"] = MagicMock()
 
 from data_provider.base import DataFetcherManager
