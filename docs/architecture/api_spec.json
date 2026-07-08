@@ -874,10 +874,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional market filter: cn/hk/us/jp/kr",
+              "description": "Optional market filter: cn/hk/us/jp/kr/tw",
               "title": "Market"
             },
-            "description": "Optional market filter: cn/hk/us/jp/kr"
+            "description": "Optional market filter: cn/hk/us/jp/kr/tw"
           },
           {
             "name": "stock_code",
@@ -1239,10 +1239,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional market filter: cn/hk/us/jp/kr",
+              "description": "Optional market filter: cn/hk/us/jp/kr/tw",
               "title": "Market"
             },
-            "description": "Optional market filter: cn/hk/us/jp/kr"
+            "description": "Optional market filter: cn/hk/us/jp/kr/tw"
           },
           {
             "name": "limit",
@@ -2510,6 +2510,18 @@
               "title": "Cost Method"
             },
             "description": "Cost method: fifo or avg"
+          },
+          {
+            "name": "include_realtime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Whether today's risk snapshot should try realtime quotes before historical close fallback",
+              "default": true,
+              "title": "Include Realtime"
+            },
+            "description": "Whether today's risk snapshot should try realtime quotes before historical close fallback"
           }
         ],
         "responses": {
@@ -3791,7 +3803,8 @@
               "hk",
               "us",
               "jp",
-              "kr"
+              "kr",
+              "tw"
             ],
             "title": "Market"
           },
@@ -4115,7 +4128,8 @@
                 "type": "string",
                 "enum": [
                   "zh",
-                  "en"
+                  "en",
+                  "ko"
                 ]
               },
               {
@@ -5665,7 +5679,8 @@
                   "hk",
                   "us",
                   "jp",
-                  "kr"
+                  "kr",
+                  "tw"
                 ]
               },
               {
