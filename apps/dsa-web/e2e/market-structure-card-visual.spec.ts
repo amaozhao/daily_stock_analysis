@@ -220,7 +220,7 @@ async function startStaticServer(rootDir: string): Promise<{
 }
 
 async function renderMarketStructureCard(distIndexPath: string, testInfo: TestInfo): Promise<void> {
-  let browser: { close: () => Promise<void> } | null = null;
+  let browser: { close: () => Promise<void> };
   try {
     browser = await chromium.launch();
   } catch (error) {
