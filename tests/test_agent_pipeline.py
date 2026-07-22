@@ -2472,8 +2472,10 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
             mock_cfg.report_integrity_enabled = False
             mock_config.return_value = mock_cfg
 
+            from src.agent.runtime_facts import AgentRuntimeFacts, SkillOpinionFact
             from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
+
             pipeline = StockAnalysisPipeline(config=mock_cfg)
             pipeline.search_service.is_available = False
             pipeline._ensure_agent_history = MagicMock()
@@ -2494,11 +2496,21 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
             mock_executor.run.return_value = SimpleNamespace(
                 success=True,
                 provider="agent-provider",
+                runtime_facts=AgentRuntimeFacts(
+                    skill_opinions=(
+                        SkillOpinionFact(
+                            skill_id="alpha",
+                            signal="buy",
+                            confidence=0.7,
+                        ),
+                    ),
+                ),
                 dashboard={"stock_name": "科创芯片ETF"},
             )
             with patch('src.agent.factory.build_agent_executor', return_value=mock_executor):
                 mock_diagnostic_snapshot.return_value = {"trace_id": "trace-1391", "query_id": "q-1391"}
                 pipeline.db.save_analysis_history = MagicMock(return_value=1)
+                pipeline._persist_skill_opinion_samples_after_history_save = MagicMock()
 
                 result = pipeline._analyze_with_agent(
                     code="588200",
@@ -2515,6 +2527,20 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
             self.assertIn("diagnostics", history_context)
             self.assertEqual(history_context["diagnostics"]["trace_id"], "trace-1391")
             self.assertEqual(history_context["stock_name"], "科创芯片ETF")
+            pipeline._persist_skill_opinion_samples_after_history_save.assert_called_once()
+            sample_kwargs = (
+                pipeline._persist_skill_opinion_samples_after_history_save.call_args.kwargs
+            )
+            self.assertIs(
+                sample_kwargs["runtime_facts"],
+                mock_executor.run.return_value.runtime_facts,
+            )
+            self.assertEqual(sample_kwargs["analysis_history_id"], 1)
+            self.assertEqual(sample_kwargs["stock_code"], "588200")
+            self.assertEqual(
+                sample_kwargs["analysis_context_pack_overview"]["data_quality"]["level"],
+                "poor",
+            )
 
 
 # ============================================================
