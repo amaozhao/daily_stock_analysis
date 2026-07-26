@@ -164,7 +164,10 @@ def _is_hk_market(code: str) -> bool:
     """
     判定是否为港股代码。
 
-    支持 `HK00700` 及纯 5 位数字形式（A 股 ETF/股票常见为 6 位）。
+    支持 ``.HK`` 后缀、``HK00700`` 前缀形式，以及 4-5 位纯数字裸码
+    （A 股 ETF/股票为 6 位，与港股 4-5 位裸数字不冲突）。``YfinanceFetcher``
+    与 ``AkshareFetcher`` / ``LongbridgeFetcher`` 的 ``_is_hk_code`` 与本
+    函数对裸港股码的位数范围保持一致。
     """
     normalized = (code or "").strip().upper()
     if normalized.endswith(".HK"):
@@ -173,7 +176,7 @@ def _is_hk_market(code: str) -> bool:
     if normalized.startswith("HK"):
         digits = normalized[2:]
         return digits.isdigit() and 1 <= len(digits) <= 5
-    if normalized.isdigit() and len(normalized) == 5:
+    if normalized.isdigit() and 4 <= len(normalized) <= 5:
         return True
     return False
 

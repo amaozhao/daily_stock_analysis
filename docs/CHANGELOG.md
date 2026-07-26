@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [修复] macOS unsigned 打包显式禁用 Electron 签名与 Hardened Runtime，在冻结后端首次执行前及 electron-builder `afterPack` 阶段清理残缺签名，并对原始应用和 DMG 挂载产物执行签名审计，避免再次发布带损坏签名的桌面包；该缓解不替代 Apple Developer 签名与公证（refs #2075）。
+- [修复] WebUI 分开展示发布版本、代码版本与构建时间，并通过构建输入摘要识别 `rsync -a` 保留时间戳造成的旧静态资源复用（fixes #2093）。
 - [chore] 暂停 PR Review 的自动触发，仅保留 `workflow_dispatch` 手动入口，避免辅助评审重复运行及评论权限失败产生误导性红灯；正式 CI 检查保持不变。
 - [新功能] Multi-Agent specialist 运行在分析历史保存成功后，按独立 skill 持久化版本化、低敏且幂等的有效 opinion 样本，为后续后验评估提供真实数据；本阶段不计算 outcome、不统计表现、不调整权重。
 - [新功能] AI 建议页在既有后验统计中增加决策风格历史表现，按每个分组独立的 30 个已完成样本门槛展示命中、区间涨跌、无法评估和最大不利波动，并保持旧统计接口兼容。
@@ -121,6 +123,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [文档] `.env.example` 与 `.github/workflows/00-daily-analysis.yml` 同步映射 `TUSHARE_HTTP_URL`，避免出现"配置项有但 workflow 漏映射"的半修状态
 - [修复] #2051 PR Review 的特权 `pull_request_target` 流程不再检出 fork PR head：敏感文件、标签、报告与 AI 审查统一通过 GitHub API 将 PR 元数据和 diff 作为数据读取，只执行主分支可信脚本；Python 语法、Flake8、确定性检查和离线测试继续由无 secrets 的 `pull_request` CI / `backend-gate` 执行，兼容 `actions/checkout` 新增的 fork checkout 安全保护。
 - [修复] 修复 Windows 上 mimetypes 冷启动时读取注册表导致的进程卡死
+- [新功能] Web 首页与 `POST /api/v1/analysis/market-review` 支持用严格校验的 `region` 字符串临时选择单个或多个复盘市场；一次性覆盖不读取或修改全局配置，“服务器默认”在任务提交边界解析为 canonical 实际执行市场，并贯穿 accepted 响应、任务状态/列表/SSE、完成态结构化 payload 与 History。
+- [修复] GitHub Actions PR Review 流程中的 `_event_payload()` 此前用 `except (OSError, ValueError): return {}` 把「事件文件缺失」「文件不可读」「JSON 非法」三类异常统一吞成空对象，下游只表现为 `PR number is unavailable` 无法定位根因；现保留空对象降级行为不变，但分别对三类失败输出不含载荷内容的警告（仅含异常类型与 `GITHUB_EVENT_PATH` 源路径），并补齐三类降级路径与「坏载荷导致 PR 编号不可用」链路的回归测试（fixes #2070）
+- [修复] DataFetcherManager 港股路由：4-5 位纯数字裸港股码（如 `02513`、`00700`、`0001`）此前仅 `_is_hk_market` 单侧识别，`AkshareFetcher._is_hk_code` 与 `LongbridgeFetcher._is_hk_code` 内仍只接受 5 位裸数字，导致配置了 Yfinance/Akshare/Longbridge 的港股日线/实时链路对 4 位裸港股码静默失败。本 PR 同步三处 `_is_hk_code` 契约到 4-5 位裸数字，并新增 `DataFetcherManager` 港股路由回归测试，避免上游路由判 HK、下游 provider 不识别的部分调用链断口（fixes #2091）
 
 ## [3.27.0] - 2026-07-19
 

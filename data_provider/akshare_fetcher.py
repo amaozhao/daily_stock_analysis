@@ -119,8 +119,13 @@ def _is_hk_code(stock_code: str) -> bool:
     判断代码是否为港股
 
     港股代码规则：
-    - 5位数字代码，如 '00700' (腾讯控股)
+    - 4-5 位数字代码，如 '00700' (腾讯控股)、'0001' (长和)、'0941' (中国移动)
     - 部分港股代码可能带有前缀，如 'hk00700', 'hk1810'
+
+    与 ``data_provider.base._is_hk_market`` 以及
+    ``YfinanceFetcher._convert_stock_code`` / ``LongbridgeFetcher._is_hk_code``
+    对裸港股码的位数范围 (4-5 位) 保持一致，避免 ``DataFetcherManager``
+    路由层判 HK 后被 ``AkshareFetcher`` 内部拒绝造成的调用链断口。
 
     Args:
         stock_code: 股票代码
@@ -137,8 +142,8 @@ def _is_hk_code(stock_code: str) -> bool:
         # 带 hk 前缀的一定是港股，去掉前缀后应为纯数字（1-5位）
         numeric_part = code[2:]
         return numeric_part.isdigit() and 1 <= len(numeric_part) <= 5
-    # 无前缀时，5位纯数字才视为港股（避免误判 A 股代码）
-    return code.isdigit() and len(code) == 5
+    # 无前缀时，4-5位纯数字才视为港股（A 股 / BSE 全部为 6 位，不冲突）
+    return code.isdigit() and 4 <= len(code) <= 5
 
 
 def _normalize_tencent_volume(fields: List[str]) -> Optional[int]:

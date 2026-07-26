@@ -22,6 +22,7 @@
     "directories": {
       "output": "dist"
     },
+    "afterPack": "scripts/afterPackMacos.js",
     "files": [
       "main.js",
       "preload.js",
@@ -55,6 +56,8 @@
       "include": "installer.nsh"
     },
     "mac": {
+      "identity": null,
+      "hardenedRuntime": false,
       "target": "dmg"
     }
   }
