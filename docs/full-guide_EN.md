@@ -58,7 +58,7 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 | Secret Name | Description | Required |
 |------------|------|:----:|
 | `ANSPIRE_API_KEYS` | [Anspire](https://open.anspire.cn/?share_code=QFBC0FYC) API key, one key for popular LLMs and Chinese-optimized web search with free quota for this project | Recommended |
-| `AIHUBMIX_KEY` | [AIHubMix](https://aihubmix.com/?aff=CfMq) API key, one key for multiple model families and a 10% top-up discount for this project | Recommended |
+| `AIHUBMIX_KEY` | [AIHubMix](https://inferera.com/?aff=CfMq) API key, one key for multiple model families and a 10% top-up discount for this project | Recommended |
 | `GEMINI_API_KEY` | Get free key from [Google AI Studio](https://aistudio.google.com/) | Optional |
 | `ANTHROPIC_API_KEY` | Anthropic Claude API Key | Optional |
 | `OPENAI_API_KEY` | OpenAI-compatible API Key (supports DeepSeek, Qwen, etc.) | Optional |
@@ -128,9 +128,8 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 | `MARKDOWN_TO_IMAGE_MAX_CHARS` | Skip image conversion above this Markdown length (default 15000) | Optional |
 | `MD2IMG_ENGINE` | Image renderer: `wkhtmltoimage` (default), `markdown-to-file`, or `playwright` | Optional |
 | `SHARE_IMAGE_XIAOHONGSHU_URL` | Xiaohongshu profile URL shown in share images; empty disables the link | Optional |
-| `SHARE_IMAGE_XIAOHONGSHU_HANDLE` | Xiaohongshu handle shown in share images; empty hides the handle | Optional |
-| `SHARE_IMAGE_XIAOHONGSHU_ID` | Xiaohongshu account ID shown in share images; empty hides the ID | Optional |
-| `SHARE_IMAGE_XIAOHONGSHU_QR_PATH` | QR image path, absolute or relative to the project root; empty hides the QR | Optional |
+| `SHARE_IMAGE_XIAOHONGSHU_HANDLE` | Xiaohongshu nickname shown in share images; when all Xiaohongshu settings are empty, uses bundled nickname `@霸天土小豆` | Optional |
+| `SHARE_IMAGE_XIAOHONGSHU_QR_PATH` | QR image path, absolute or relative to the project root; when all Xiaohongshu settings are empty, uses the bundled QR | Optional |
 | `NOTIFICATION_REPORT_CHANNELS` | Report route channels for single-stock, aggregate daily, market review, merged push, and Feishu document success notifications. Empty means all configured channels | Optional |
 | `NOTIFICATION_ALERT_CHANNELS` | Alert route channels for EventMonitor notifications. Empty means all configured channels | Optional |
 | `NOTIFICATION_SYSTEM_ERROR_CHANNELS` | Reserved system_error route channels. No automatic system error producer is added in P3; empty means all configured channels | Optional |
@@ -156,9 +155,9 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) Search API (for news search) | Optional |
 | `BOCHA_API_KEYS` | [Bocha Search](https://open.bocha.cn/) Web Search API (Chinese search optimized, supports AI summaries, multiple keys comma-separated) | Optional |
 | `BRAVE_API_KEYS` | [Brave Search](https://brave.com/search/api/) API (privacy-first, US-stock news enrichment, comma-separated for multiple keys) | Optional |
-| `MINIMAX_API_KEYS` | [MiniMax](https://platform.minimaxi.com/) Token Plan / Coding Plan Web Search (structured results) | Optional |
-| `SEARXNG_BASE_URLS` | SearXNG self-hosted instances (quota-free fallback, enable format: json in settings.yml); when empty the app auto-discovers public instances | Optional |
-| `SEARXNG_PUBLIC_INSTANCES_ENABLED` | Auto-discover public SearXNG instances from `searx.space` when `SEARXNG_BASE_URLS` is empty (default `true`) | Optional |
+| `MINIMAX_API_KEYS` | [MiniMax](https://platform.minimax.io/) Coding Plan Web Search (structured search results) | Optional |
+| `SEARXNG_BASE_URLS` | SearXNG self-hosted instances (quota-free fallback, enable format: json in settings.yml); when empty, `searx.space` discovery is used only if public instances are explicitly enabled | Optional |
+| `SEARXNG_PUBLIC_INSTANCES_ENABLED` | Auto-discover public SearXNG instances from `searx.space` when `SEARXNG_BASE_URLS` is empty (default `false`). Public instances are commonly rate-limited or do not return JSON, so enabling this can add 30-60s per run and still yield no news | Optional |
 | `TUSHARE_TOKEN` | [Tushare Pro](https://tushare.pro/weborder/#/login?reg=834638) Token | Optional |
 | `TUSHARE_HTTP_URL` | Tushare Pro HTTP endpoint; when unset/empty defaults to the official `http://api.tushare.pro`. Set to a `http://` or `https://` URL only when routing through a corporate proxy, cross-border network, or a self-hosted mirror | Optional |
 | `TICKFLOW_API_KEY` | [TickFlow](https://tickflow.org) API key for optional A-share daily K-lines, realtime quotes, stock list/name lookup, and CN market review enhancement; permission or entitlement failures fall back to existing providers | Optional |
@@ -218,6 +217,10 @@ Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
 | `AGENT_BACKEND` | Runtime for the existing ask-stock Chat: `auto` (recommended, preserves the default model), `litellm`, or `codex_app_server` (experimental, single-agent Chat only) | `auto` | No |
 | `AGENT_GENERATION_BACKEND` | Agent Chat generation backend. Web settings only expose `auto|litellm`; hand-written local CLI backends return an unsupported tool-calling diagnostic | `auto` | No |
 | `AGENT_SKILL_CONCURRENCY` | Specialist-mode strategy worker concurrency cap, range `1-4`. Up to four strategies are selected; the default runs three concurrently and queues the fourth under the shared pipeline budget | `3` | No |
+| `AGENT_DATA_TOOL_TIMEOUT_S` | Default timeout (seconds) for Agent `data`-category tools; also the category default for `market` tools (`get_market_indices` / `get_sector_rankings` and other network-backed data calls); `0` disables and falls back to the global budget. The effective timeout is resolved first-wins: explicit per-run `tool_call_timeout_seconds` > per-tool `timeout_seconds` > category default > no limit, with the remaining wall-clock budget as an unbreakable outer cap; `inf`/`nan`/negative degrade to "no limit". Timeout is a best-effort soft interrupt: Python threads cannot be force-stopped, so a handler may keep running after the timeout; the timed-out result is marked `retriable: false` and recorded in `non_retriable_tool_results` to block immediate retries, and the runner arms a cooperative-cancel signal (`is_tool_cancellation_requested()` and the existing `check_tool_execution()` checkpoints both honor it) to reduce side effects | `0` | No |
+| `AGENT_SEARCH_TOOL_TIMEOUT_S` | Default timeout (seconds) for Agent `search`-category tools; `0` disables and falls back to the global budget | `0` | No |
+| `AGENT_ANALYSIS_TOOL_TIMEOUT_S` | Default timeout (seconds) for Agent `analysis`-category tools; `0` disables and falls back to the global budget | `0` | No |
+| `AGENT_ACTION_TOOL_TIMEOUT_S` | Default timeout (seconds) for Agent `action`-category tools; `0` disables and falls back to the global budget | `0` | No |
 | `LITELLM_MODEL` | Primary model, format `provider/model` (e.g. `gemini/gemini-3.1-pro-preview`), recommended | - | No |
 | `AGENT_LITELLM_MODEL` | Optional primary model for **Default model** ask-stock; empty inherits the primary model and bare names become `openai/<model>`; Codex does not use this setting | - | No |
 | `AGENT_CONTEXT_COMPRESSION_ENABLED` | LLM compression for visible **Default model** ask-stock history; Codex uses the 20 most recent visible messages and retains this setting | `false` | No |
@@ -233,7 +236,7 @@ Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
 | `LLM_USAGE_HMAC_SECRET` | Secret for LLM usage telemetry message HMACs; leave empty to use a generated local data-dir secret file | - | No |
 | `LLM_USAGE_HMAC_KEY_VERSION` | Version label for the LLM usage HMAC key; update it when rotating the secret | `local-v1` | No |
 | `ANSPIRE_API_KEYS` | [Anspire](https://open.anspire.cn/?share_code=QFBC0FYC) API key, one key for the LLM gateway and search | - | Optional |
-| `AIHUBMIX_KEY` | [AIHubMix](https://aihubmix.com/?aff=CfMq) API key, one key for multiple model families | - | Optional |
+| `AIHUBMIX_KEY` | [AIHubMix](https://inferera.com/?aff=CfMq) API key, one key for multiple model families | - | Optional |
 | `GEMINI_API_KEY` | Google Gemini API Key | - | Optional |
 | `GEMINI_MODEL` | Primary model name (legacy, `LITELLM_MODEL` preferred) | `gemini-3.1-pro-preview` | No |
 | `GEMINI_MODEL_FALLBACK` | Fallback model (legacy) | `gemini-3-flash-preview` | No |
@@ -333,8 +336,8 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 | `MINIMAX_API_KEYS` | MiniMax Coding Plan Web Search (structured results) | Optional |
 | `SOCIAL_SENTIMENT_API_KEY` | Stock Sentiment API Key (Reddit / X / Polymarket, US stocks optional) | Optional |
 | `SOCIAL_SENTIMENT_API_URL` | Stock Sentiment API endpoint (default `https://api.adanos.org`) | Optional |
-| `SEARXNG_BASE_URLS` | SearXNG self-hosted instances (quota-free fallback, enable format: json in settings.yml); when empty the app auto-discovers public instances | Optional |
-| `SEARXNG_PUBLIC_INSTANCES_ENABLED` | Auto-discover public SearXNG instances from `searx.space` when `SEARXNG_BASE_URLS` is empty (default `true`) | Optional |
+| `SEARXNG_BASE_URLS` | SearXNG self-hosted instances (quota-free fallback, enable format: json in settings.yml); when empty, `searx.space` discovery is used only if public instances are explicitly enabled | Optional |
+| `SEARXNG_PUBLIC_INSTANCES_ENABLED` | Auto-discover public SearXNG instances from `searx.space` when `SEARXNG_BASE_URLS` is empty (default `false`). Public instances are commonly rate-limited or do not return JSON, so enabling this can add 30-60s per run and still yield no news | Optional |
 
 > Behavior note: Search and social sentiment are optional enhancement services. If either service fails to initialize, the system logs a warning and degrades gracefully by skipping that stage without blocking the core analysis flow.
 
@@ -717,7 +720,7 @@ crontab -e
 
 > Note: Scheduled mode reloads the saved `STOCK_LIST` before each run. If you also pass `--stocks`, it will not pin future scheduled executions to the startup snapshot; use a normal one-off run when you want to analyze a temporary stock list.
 >
-> When the built-in scheduler is started via `python main.py --schedule` or an equivalent CLI-only mode, saving a new `SCHEDULE_TIME` / `SCHEDULE_TIMES` from the WebUI will rebind the daily jobs on the next scheduler poll without restarting the process. The previous trigger times are removed instead of being kept alongside the new ones. `python main.py --serve --schedule` is owned by the Web/API runtime scheduler, so long-running WebUI/API/Desktop processes start, stop, or rebuild the runtime scheduler after saving `SCHEDULE_ENABLED`, `SCHEDULE_TIME`, or `SCHEDULE_TIMES`.
+> When the built-in scheduler is started via `python main.py --schedule` or an equivalent CLI-only mode, saving a new `SCHEDULE_TIME` / `SCHEDULE_TIMES` from the WebUI will rebind the daily jobs on the next scheduler poll without restarting the process. The previous trigger times are removed instead of being kept alongside the new ones. `python main.py --serve --schedule` is owned by the Web/API runtime scheduler, so long-running WebUI/API/Desktop processes start, stop, or rebuild the runtime scheduler after saving `SCHEDULE_ENABLED`, `SCHEDULE_TIME`, or `SCHEDULE_TIMES`. Restarting `python main.py --serve-only` or Desktop restores enabled daily jobs, while service startup itself never runs an immediate analysis.
 >
 > The Web/API runtime scheduler run-now endpoint only accepts a request when no analysis is already running; if an analysis is in progress, it returns a busy response instead of reporting a queued run.
 
@@ -1408,15 +1411,17 @@ FastAPI provides RESTful API service for configuration management and triggering
 | Command | Description |
 |------|------|
 | `python main.py --serve` | Start API service + run full analysis once |
-| `python main.py --serve-only` | Start API service only, manually trigger analysis |
+| `python main.py --serve-only` | Start API service only; allow manual runs and restore enabled schedules without an immediate startup analysis |
 
 ### Features
 
 - **Configuration Management** - View/modify watchlist
-- **Home workspace tri-view** - Home now has History / Watchlist / Today tabs, with History as the default view; Watchlist supports batch submission for all stocks or only those not analyzed today
+- **Home workspace tri-view** - Home has History / Watchlist / Today tabs, with History as the default view; on mobile, each list's inner viewport owns vertical touch scrolling without an outer card clipping the gesture, while desktop cards keep their visual clipping boundary; a watchlist row opens its confirmed latest report with mouse or keyboard, and its notice always follows the current lookup-in-progress, lookup-failed, or confirmed-no-detail state; every stock-bar request and the data refresh after task completion enter the unsettled state immediately, so stale stock-bar and fallback reports stay unavailable while status is being reconfirmed or is unknown; Refresh retries both the watchlist and detail status, with per-stock fallback lookups using a fixed concurrency bound and obsolete batches cancelled on refresh or page-state changes; Watchlist supports batch submission for all stocks or only those not analyzed today
+- **Collapsible task panel** - The Home task panel can be collapsed or expanded; the collapsed state keeps pending/processing summaries visible, gives more sidebar space to the watchlist, and persists for the current page session
 - **UI Language Switch** - Toggle UI language (`zh`/`en`) on login page, shell/navigation, settings page, and shared controls; this switch is independent of `REPORT_LANGUAGE`.
 - **Quick Analysis** - Trigger stock analysis via API; the Home page also provides a one-run market selector next to Market Review, so Docker/server mode can use the server default or a temporary single/multi-market scope
 - **Strategy selection** - The Home page supports explicitly selecting analysis strategy skills; when `skills` is omitted, analysis uses the server default strategy so legacy clients keep existing behavior
+- **Session-level Skill selection** - Ask Stock sessions persist their current Skill selection; refresh and session switching restore each session independently, while new sessions keep the server default
 - **Today-state refresh safety** - Today and watchlist status loading uses history lookups with explicit timezone-aware date filtering and full pagination; a successful refresh from a newer stock-bar request is required to clear an unknown state, so stale in-flight responses cannot override completion refresh results
 - **First-run Setup Hint** - The Home page reads the read-only setup status and points users to Settings when required items such as the primary LLM channel or watchlist are missing
 - **Real-time Progress** - Analysis task status updates in real-time, supports parallel tasks; the regular stock-analysis path now prefers LiteLLM streaming during the LLM stage and pushes finer-grained `message/progress` updates through task SSE
@@ -1451,6 +1456,8 @@ For this feature, the product behavior is:
 | `/api/v1/screening/screen/tasks` | POST | Submit a screening task (`SCREENING_ENABLED` must be enabled first); an optional anonymous `variant_seed` samples a bounded near-score combination per run while preserving materially superior candidates, filters, risk controls, and scores |
 | `/api/v1/screening/screen/tasks/{task_id}` | GET | Query screening task status and completed result |
 | `/api/v1/history` | GET | Query analysis history |
+| `/api/v1/history/{record_id}/share-image` | GET | Generate a historical-report PNG for browsers; requires an available `MD2IMG_ENGINE` |
+| `/api/v1/history/{record_id}/share-image-html` | GET | Generate restricted poster HTML for capture by the Electron desktop Chromium runtime |
 | `/api/v1/history/{record_id}/diagnostics` | GET | Query a historical report run diagnostic summary and sanitized copy text |
 | `/api/v1/decision-signals` | POST | Explicitly create or deduplicate a decision signal and return `{ item, created }` |
 | `/api/v1/decision-signals` | GET | Paginated decision-signal query with stock, market, action, phase, profile, source, status, time-range, and cache-only holdings filters |
@@ -1494,6 +1501,8 @@ For this feature, the product behavior is:
 > Issue #1520 compatibility note: The `model`/`model_used` returned here is read-only historical snapshot metadata from each record, used only for trend drawer/history display. It does not alter runtime model/model-provider/base URL resolution, config migration, or cleanup semantics in the analysis path. Rollback is by reverting this commit; history query, API response shapes, and UI drawer consumption remain compatible.
 > Note: history detail, sync analysis responses, and completed task status responses expose a low-sensitivity input data-block overview at `report.details.analysis_context_pack_overview`; sync analysis responses depend on the just-persisted `analysis_history.context_snapshot`, so new records do not guarantee the overview when `SAVE_CONTEXT_SNAPSHOT=false`. `details.context_snapshot` strips that top-level field and does not return the full `AnalysisContextPack` or prompt summary.
 > Note: `POST /api/v1/agent/chat` and `POST /api/v1/agent/chat/stream` use the frontend-provided `context.stock_code` as the active Ask Stock baseline and fall back to global `REPORT_LANGUAGE` when `context.report_language` is absent; an explicitly supplied `context.report_language` keeps precedence. Stock scope is still resolved server-side. Each turn is classified as `maintain`, `switch`, or `compare`: unchanged follow-ups can call stock-scoped tools only for the current stock; explicit switches clear stale stock summaries and prefetched context; comparison prompts such as compare/vs/difference allow the explicitly mentioned codes for that turn without rewriting the current stock. If a model attempts to call a stock tool with financial abbreviations such as TTM, PE, MACD, KDJ, contextual indicator tokens such as `MA` in moving-average prompts, or exchange fragments such as SH/SZ/BJ/HK/SS, the backend returns a non-retriable `stock_scope_violation` tool result instead of executing that stock tool. Tool names are resolved only by exact registry name; provider namespaces or suffixes are not routed to existing tools.
+
+> Session Skill state: the top-level `skills` field is tri-state on both Chat requests and is the only authoritative request source for Skill selection. Omitting it or sending `null` inherits the selection saved for that `session_id`; sessions without state use the runtime server default. Sending `[]` clears the explicit selection and preserves the existing general/server-default execution semantics. A non-empty list is cleaned, deduplicated, and saved with the existing Skill catalog rules. Mixed valid and invalid entries keep the valid entries; if every entry is invalid, the normalized empty result is not treated as an explicit `[]`, so the request inherits session state or the runtime default without persisting an empty state. Any legacy `skills` or `strategies` fields left in the analysis-reuse `context` are removed by the server and cannot override the top-level tri-state or session state. The user message and an explicit Skill update are written in one transaction before the streaming endpoint emits `accepted`. `GET /api/v1/agent/chat/sessions/{session_id}` returns `session_state.selected_skill_ids` alongside messages: `null` means no state has been persisted, `[]` means the selection was explicitly cleared, and a non-empty list is the saved selection. The Web client restores only persisted selections from this field. For `null`, it may display the server default Skill, but an untouched follow-up still omits `skills` so a legacy session is not silently converted into an explicit-Skill session. Deleting a session also deletes its state.
 > Note: `POST /api/v1/backtest/run` adds `analysis_date_from` / `analysis_date_to` (`YYYY-MM-DD`) to filter candidates by analysis date range. When `analysis_date_from > analysis_date_to`, it returns 400 `invalid_params`.
 > Note: When backtest runs successfully but yields no new persisted rows, `BacktestRunResponse.message` carries a readable diagnostic and `diagnostics` returns troubleshooting context (for example `empty_reason`, `analysis_date_from`, `analysis_date_to`, `eval_window_days`, `min_age_days`, `limit`).
 > Note: `GET /api/v1/backtest/results`, `GET /api/v1/backtest/performance`, and `GET /api/v1/backtest/performance/{code}` all support `analysis_date_from` and `analysis_date_to` consistently. Omitting them keeps historical default behavior.

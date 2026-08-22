@@ -60,5 +60,8 @@
       "hardenedRuntime": false,
       "target": "dmg"
     }
+  },
+  "overrides": {
+    "builder-util-runtime": "9.7.0"
   }
 }
