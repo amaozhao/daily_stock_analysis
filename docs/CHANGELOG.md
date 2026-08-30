@@ -8,6 +8,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 > For user-friendly release highlights, see the [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) page.
 
 ## [Unreleased]
+- [新功能] 新增 `SEARXNG_TIMEOUT_SECONDS` 配置自建 SearXNG 单次搜索超时（默认 10 秒），已接线全部 SearchService 构造入口（含题材搜索子进程重建）与默认 GitHub Actions 工作流
+
+- [修复] 美股日线路由现按各数据源当前优先级排序，单项 `*_PRIORITY` 配置（如 `YFINANCE_PRIORITY=0`）对美股即时生效；指数固定首选与 Longbridge preferred 语义保持不变
+
+- [新功能] 新增个股研究聚合 API，以统一 canonical code 返回行情、历史、研究产物、资讯、缓存持仓关系和监控规则，并对每个块独立标记 fresh/partial/unavailable。
+- [修复] 个股研究聚合拒绝交易所冲突的股票身份，在市场限定后无历史候选时保持空结果，兼容市场限定裸码与混合大小写旧数据，并从独立基本面快照补齐 ResearchArtifact 的财报与分红证据。
+
+- [新功能] 支持通过 `main.py --stocks` 一次性分析已登记板块指数，自动使用指数适用的数据与分析能力，并保持报告、历史和决策信号兼容。
+- [修复] `main.py --stocks` 在解析股票列表前先 best-effort 刷新股票索引注册表，保证首次运行能吃到刷新后的指数 alias/身份；刷新失败、超时或禁用不阻断分析。
+- [修复] 交易日过滤对市场未知的指数 code（如 `sh000016`/`csi930955`/`930955.CSI`）按 `market=cn` 参与 A 股休市过滤，避免休市日指数被 fail-open 保留；市场仍未知的非指数 code 继续保留。
+- [修复] 指数分析将实际命中的日线数据源归因保存到历史记录，并由 Dashboard/Brief aggregate 报告展示；来源无效时保持原有输出。
+- [文档] 在中英繁 README 顶部关联 DSA arXiv 论文，并新增 `CITATION.cff` 统一项目引用信息。
+- [新功能] 新增数据源能力与数据集质量只读契约，提供 `/api/v1/data/overview` 和 `/api/v1/data/capabilities`，为大盘看板、数据中心、个股详情和自选 2.0 统一暴露 provider capability、dataset quality 和 source priority。
+- [修复] 统一美股指数实时行情与数据能力概览为 YFinance-only 路由，避免 YFinance 失败后误用 Longbridge fallback。
+- [改进] PR CI 增加文档路径检测：仅修改普通文档、非治理 Markdown 或 LICENSE 时跳过后端测试分片、Docker、Web 与桌面打包，保留轻量治理和门禁汇总；契约文档、静态 API 规格与测试 fixture 仍执行后端回归。
+- [新功能] 新增 ResearchArtifact 结构化研究产物契约，在 `AnalysisReport.structured_report` 中承载 Thesis、Evidence、Invalidation Conditions、Next Actions 和 Data Quality，并提供从现有报告生成结构化产物的后端 helper 与 Web 类型。
+- [修复] 同步 ResearchArtifact 与 `AnalysisReport.structured_report` 到静态 OpenAPI，避免公开 API 规格与运行时契约漂移。
+- [修复] Linux/Docker 分享图补齐 Noto CJK 字体与中韩文字体栈，避免 PNG 只显示数字和英文、中文或韩文内容消失。
+- [修复] 股票名称归一：AkShare 部分名称带无意义内嵌空格（“五 粮 液”、“万  科Ａ”）与全角宽度拼写（“京东方Ａ” 的全角 Ａ），统一经 `_normalize_stock_name()` 做 NFKC 宽度归一 + 去空白（原 `_compact_stock_name` 仅去空白）：本地映射初值、`_build_name_map_from_df()` 构建与 `extend_AkShare()` 合并、磁盘缓存加载三个入库口（含归一后为空的条目守卫）与 `resolver_name_to_code_list()` / `is_known_stock_name()` / `resolve_name_to_code()` 三个查询入口同源归一；消除空格/全角拼写与本地无空格半角拼写比较不相等造成的假性改名别名，源形态输入（带空格/全角）与常规拼写同样可解析，覆盖 `/analyze` API、按名称导入与 Bot 文本解析等全部调用路径；全角拼写此前与分词管道 NFKC 归一后的半角输入（“京东方A”）永不相等——全名精确匹配落空且会被更短库内名误切出错误实体（“京东”），归一后半角/全角输入产出一致、展示名统一为归一拼写；磁盘缓存中的历史未归一数据（带空格/全角）经合并与加载入口自动归一，无需迁移。
+- [新功能] Web Chat 意图识别层新增分词模块：`web_intent_tokenizer` 六步管道（多股票全名实体扫描 → 标点/空白切分 → 代码形提取 → 市场关键词 → 无歧义关键词 → 残存 gap 多策略 DFS 匹配）把用户消息切分为携带语义标签的 Token 序列；配套 `web_intent_types` 数据字典（Token 结构、Market 枚举、21 个语义 tag、clean/extend 双词池与正则机器）。核心原则"宁可不做，不可做错"：Step 1~5 只做精确匹配，Step 6 要求整段 TAG 全覆盖（交叉验证）才产出，未覆盖片段保持空 tag 交下游 LLM 兜底；代码形 token 辨认为 `stock_code`（附 code/name/market 三元组）/ `wrong_{market}_code` / `unknown_{market}_code` 三态，token 层代码拼写统一 canonical 归一（a=6 位裸数字、hk=HK+5 位、us=大写 ticker）。意图枚举与意图识别结果随后续 `web_intent_resolver` PR 引入。新增 183 个分词单元测试。
+<!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
+<!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
+- [新功能] 完善 Futu OpenD 港股数据源接入：系统设置支持 OpenD 地址、端口和港股实时数据源优先级，保留 Longbridge、AkShare、YFinance fallback。
+- [测试] 增加 Futu 配置 schema、港股实时路由和 fallback 契约覆盖。
+
+- [新功能] 建立唯一、可生成、可校验、可降级的指数身份注册表：由 `scripts/stock_index_seeds/index_registry.csv` 的 31 项 manifest 确定性合并进 `apps/dsa-web/public/stocks.index.json`，运行时唯一真源为 JSON 中通过校验的 `active=true`/`assetType=index` 行，移除 `stock_list_parser` 的 5 项硬编码白名单；支持 `--index-only` 生成与字节稳定输出。
+- [新功能] 补齐显式 SH/SZ/CSI 指数 alias 收敛与 CSI 身份：`sh000300`/`000300.SH`/`sz399300`/`399300.SZ`/`000300.CSI` 均解析到 `sh000300`，`csi930955`/`930955.CSI` 解析到 `csi930955`；未登记 `.CSI` 输入返回 `unsupported`；裸数字恒为 stock 并仅通过 `matched_index` 暴露歧义。
+- [新功能] 数据管理器按 SH/SZ/CSI 支持矩阵映射 provider symbol：CSI 仅 AkShare 支持（`csi{code}`），Tencent/TickFlow/Yahoo 返回空 symbol 并记录 `unsupported` provider-run，不触发指数健康熔断。
+- [改进] 存储层 `_derive_canonical_id` 统一为 parser 推导（裸码=stock、显式指数=index），并新增幂等分批修复历史裸码错误 canonical 串桶（`000001`/`000016`/`000688`/`930955` 等），显式指数行与正确 stock 行不受影响，registry 为空时修复 no-op。
+- [改进] Web loader 完整解压含 index 的共享 payload，但在返回给 autocomplete/popular/group 消费面前过滤 `assetType=index`，股票与 ETF 行为保持不变。
+- [测试] 为生成器、loader、parser、provider 路由、存储修复与 Web 门槛补充 TDD 回归锚点。
+- [修复] PR #2267 review 收敛 CSI 显式身份：将 `csi` prefix（canonical）与 `.CSI` suffix（显式 alias）在 parser/build/runtime 规范化器中分离，未登记显式 `csiNNNNNN`/`NNNNNN.CSI` 一律返回 `unsupported`（不再落入美股或猜测 SH/SZ），并防止未登记 `csi000300` 被等价成已登记 `000300.CSI` alias；存储 `_derive_canonical_id` 对 unsupported 输入返回 NULL，避免进入持久化 canonical 桶。
+- [修复] 在 seed、build entry 与 runtime candidate 三层严格校验 alias 唯一性与整数 popularity：NFKC/casefold 等价 alias 跨条目冲突被拒绝（无静默覆盖），非负整数之外（小数/布尔/负值/字符串）popularity 一律拒绝，整数 `100` 保持有效。
+- [修复] 收敛已登记 CSI 显式身份在 resolver、任务去重键与历史候选中的分裂：`csi930955`/`930955.CSI`/`CSI930955` 统一解析为 parser canonical `csi930955`，未登记 `csi930956`/`930956.CSI` 保持既有降级语义；`is_code_like()`、REST/watchlist 输入边界与完整 Pipeline 透传不变。
+- [修复] 阻止任意更新的非 bundled 指数候选（含 legacy `static` 子集）在 remote 缺失/损坏时以 active-index 子集覆盖 bundled baseline：所有非 bundled 候选必须为 bundled active-index canonical 集合的合法超集，否则回退 bundled 并记录 WARNING。
+- [新功能] 桌面端全局右上角增加更新入口，与设置页共用更新状态；普通浏览器 WebUI 不展示，且不会在挂载时重复触发后台检查。
+- [修复] 桌面端右上角更新入口与设置页共用检查中状态，避免一侧检查时另一侧仍可重复触发 GitHub Releases 检查；主进程手动检查路径同步增加 in-flight 防重。
+
+## [3.31.0] - 2026-08-23
+
+### 发布亮点
+
+- feat: Agent 工具调用新增按类别和单工具配置的超时契约，并补齐防重试、协作取消、并发预算与热重载一致性。
+- feat: 股票名称解析、`canonical_id` 双写和 A 股指数多数据源路由共同完善股票身份与行情降级链路。
+- improve: 新闻检索为空时在报告中如实披露证据边界，Anspire 默认覆盖全球区域，公共 SearXNG 实例改为显式启用。
+- fix: 定时任务恢复、无报告失败反馈、通知发送和大盘复盘历史/诊断信息进一步收敛，减少静默失败与误导展示。
+- security: 桌面端升级 `builder-util-runtime`，修复 CVE-2026-54673 涉及的重定向凭据头信息泄露风险。
+- docs: 增加 xAI Grok 的 LiteLLM 配置示例、Grok Bot 集成说明与可复用 Skill。
+
+### 变更明细
 
 - [修复] 大盘复盘历史列表与详情统一展示持久化短摘要；旧记录缺少摘要时从完整 Markdown 生成无内部标记的纯文本节选。
 - [修复] 大盘复盘按实际执行的生成后端和模型记录诊断，避免 Codex CLI 或 fallback 被误显示为配置模型。
@@ -128,6 +178,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] AIHubMix 注册与引流链接统一使用 inferera.com，改善中国大陆网络直连体验。
 - [修复] 单股推送模式在未配置通知渠道时仍会落盘本地个股报告；CLI 启动分析若因空股票列表、个股结果全失败或本地报告保存失败而未生成报告，会显式返回失败并记录原因。
 - [修复] 合并推送模式下即使个股汇总报告落盘失败，仍会先发送已有的合并通知；仅启用大盘复盘但最终未生成任何复盘内容时，分析任务会显式返回失败。
+- [修复] 选股结果持久化恢复：选股页新增历史记录区块，任务完成后保留 run_id，刷新页面可从历史 API 恢复上次选股结果（此前刷新后结果丢失）。
+- [修复] Web/API runtime scheduler 使用跨平台独立进程执行分析，并在默认 45 分钟硬超时或服务停止后清理进程树；停止返回后不再派发新的自动任务，避免一次卡死阻断后续调度。
 - [修复] SearXNG 公共实例发现的默认值由启用改为关闭：公共实例普遍存在限流、下线或不返回 JSON 的情况，默认开启会让未配置搜索 key 的用户每次分析多耗 30~60 秒且新闻面最终为空。运行时默认值、配置模板、中英文档与工作流诊断同步调整；显式设为 true 的用户行为不变。
 - [改进] 新闻检索未执行或零命中时，报告中如实标注结论未纳入新闻面证据：零命中与「未配置搜索渠道」使用各自独立的文案，覆盖日报 / dashboard / brief / 个股 / 企业微信与模板渲染的详细与摘要分支、历史报告与分享导出、报告详情 API 与 Web 报告详情页，并按 `zh` / `en` / `ko` 分别本地化。此前该情况下消息面章节直接消失，读者无从区分「确实没有新闻」与「检索静默失败」。披露以本次分析实际收到的消息面证据为准，涵盖实时检索、社交情绪与本地已落库的资讯池三路来源；搜索命中数仅用于在确无证据时说明原因（未配置渠道 / 检索零命中），避免把已用到本地或社交证据的分析误报成「未纳入新闻面证据」。Agent 模式的命中数取自 Agent 实际消费的搜索工具结果，而非分析结束后为持久化情报而补打的查询。
 
@@ -137,6 +189,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 按最新 review 复核收敛 3 处正确性问题（OR-COM-7f3d3f5b / 3d6b61f8 / a1e8b0c2）：`BaseAgent._filtered_registry()` 携带源 registry 的类别超时映射（工具子集仍生效类别上限，不再绕过 #1890 类别超时）；并行批次 >5 时排队调用的 per-tool 超时自 worker 实际开始起算（不再提交即烧预算导致对未启动调用的假超时）；`get_tool_registry()` 缓存命中快路径在锁内读取一致对（消除与 `reset_tool_registry()` 竞态返回 `None` 或错配 registry）。新增对应回归测试。
 - [新功能] 股票名称解析引擎重构增强：新增 `resolver_name_to_code_list()` 公开 API，返回按市场排序（A 股→港股→美股）的 `Stock` 候选列表（最多 5 个），新增 `US_stock_code_match()` 匹配美股 ticker（1~5 位字母且仅限本地库已存在代码，避免 hello/open 等英文词误判为股票）；AkShare 全量 A 股数据经幂等 `extend_AkShare()` 合并进全局 `stockDB`（30 分钟缓存 + 失败 5 分钟退避 + Future 单飞：TTL 过期 stale-while-revalidate 零等待、冷启动等待上界由拉取超时推导（拉取经子进程封顶 25s）、worker 先清账唤醒等待者再做日志/落盘（finally 兜底 BaseException）、成功拉取落盘 `data/cache` 跨重启复用，非中文输入跳过网络扩展），匹配策略升级为「精确→子串（≥2 汉字）→拼音子串（≥5 字母）→difflib 模糊（0.8，单字误写 0.7 兜底）」；`resolve_name_to_code()` 保持既有本地优先语义（本地精确命中零网络，调用方离线低延迟契约不变），跨市场候选能力由 `resolver_name_to_code_list()` 独立提供；解析全链路线程安全（`stockDB` 读写加锁、名称/拼音索引随库变更自动失效），新增 40 个单元测试覆盖精确/跨市场排序/子串/拼音/模糊/幂等扩展/失败退避/多候选场景。
 - [改进] `StockDaily` 表新增可空 `canonical_id` 列并支持双写（Expand-Contract PR2，issue #2207）：自愈式迁移幂等加列 + 普通索引 `ix_stock_daily_canonical_id`，存量行与 `save_daily_data` 未显式传参时均经 index-aware 推导（裸指数码命中注册表时统一到指数 `canonical_id`，避免同一指数按输入形态分裂到不同桶——例如裸 `000300` 与显式 `sh000300` 现在都收敛到 `sh000300`，而非裸码被推导为 `sz000300`），推导失败写 NULL 降级；读路径仍用 `code` 列，`(code, date)` 唯一约束保留不变。显式登记契约漂移：PRD Glossary/FR-1/DD-3 与架构 AD-1/AD-7 中 canonical_id 的点分格式描述（`000016.SH`）已被 Phase 1 已合入代码的前缀格式（`sh000016`）取代，本变更遵循代码，PRD/架构文档的同步修正留待后续 PR 统一收敛。
+- [新功能] 当前注册表已识别的 5 个沪深 A 股指数以显式市场输入按 canonical 身份路由：名称优先使用注册表并以 Tencent、AkShare、TickFlow 兜底，日线固定使用 Tencent、AkShare、TickFlow、yfinance 多源降级链，不读取普通 A 股日 K 的 `*_PRIORITY` 配置；裸代码仍按股票处理，并隔离同码股票名称缓存。
+- [修复] Anspire 搜索默认切换为全球区域模式（`region_mode=2`），使海外股票新闻检索能够覆盖境外信息。
+- [修复] 桌面端将 `builder-util-runtime` 升级至 9.7.0，修复 CVE-2026-54673 涉及的 HTTP 重定向凭据头信息泄露风险。
+- [文档] 增加 xAI Grok 的 LiteLLM 配置示例、Grok Bot 集成指南和异步分析 Skill，明确分析模型与 AI teammate 两类接入边界。
+- [测试] 固定 yfinance 股息 TTM 与单股报告文件名的时间夹具，消除跨日期和合并后时间基准冲突造成的 CI 波动。
 
 ## [3.30.0] - 2026-08-09
 
@@ -2310,7 +2367,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-[Unreleased]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.30.0...HEAD
+[Unreleased]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.31.0...HEAD
+[3.31.0]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.30.0...v3.31.0
 [3.30.0]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.29.0...v3.30.0
 [3.29.0]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.28.0...v3.29.0
 [3.28.0]: https://github.com/ZhuLinsen/daily_stock_analysis/compare/v3.27.0...v3.28.0
